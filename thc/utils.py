@@ -14,6 +14,7 @@ class KMeans:
         self.nleft = len(grid) - self.neven 
         # distribute grid
         self.grid = self.distribute(grid)
+        self.global_grid = grid
         self.max_it = max_it
         self.thresh = thresh
 
@@ -21,9 +22,15 @@ class KMeans:
         # pad last processor grid with zeros to avoid scatterv
         if self.rank == 0:
             if self.nleft > 0:
-                sendbuf = numpy.pad(array, [(0,self.nleft), (0,0)], 'constant')
+                if len(array.shape) == 2:
+                    pad_shape = [(0,self.nleft), (0,0)]
+                else:
+                    pad_shape = (0, self.nleft)
+                sendbuf = numpy.pad(array, pad_shape, 'constant')
             else:
                 sendbuf = array
+        else:
+            sendbuf = None
         recvbuf = numpy.empty(array.shape)
         self.comm.Scatter(sendbuf, recvbuf, root=0)
         return recvbuf
@@ -58,14 +65,14 @@ class KMeans:
     # finds the closest point in the grid for every centroid and returns the
     # set of indices
     def map2grid(self, centroids):
-        X = self.classify(centroids, self.grid)
-        Xglobal = numpy.empty(len(X)*self.nprocs, dtype=X.dtype)
-        self.comm.Alltoall(X, Xglobal)
-        Xsorted = numpy.sort(Xglobal)
-        # look for repeated
-        for i in range(Xsorted.shape[0]-1):
-            assert( Xsorted[i] != Xsorted[i+1] ) 
-        return Xsorted
+        if self.comm.rank == 0:
+            X = numpy.sort(self.classify(centroids, self.global_grid))
+            # look for repeated
+            for i in range(X.shape[0]-1):
+                assert( X[i] != X[i+1] ) 
+            return X
+        else:
+            return None
 
     def kernel(self, weights, centroids):
         # Distribute weights among processors. This is to ensure that
@@ -76,12 +83,16 @@ class KMeans:
         ngs = self.grid.shape[0] 
         nmu = centroids.shape[0] 
         for t in range(self.max_it):
+            # Per processor step
             X = self.classify(self.grid, centroids)
+            # Global reduce
             c_new = self.centroids(X, nmu)
+            if t == 67:
+                print ("NEw: ", c_new)
             d = numpy.linalg.norm(c_new-centroids)
             if d < self.thresh:
                 self.t_kmeans = time.time() - self.t_kmeans
                 return self.map2grid(c_new)
             centroids = c_new
         self.t_kmeans = time.time() - self.t_kmeans
-        return self.map2grid(centroids)
+        return self.map2grid(c_new)
