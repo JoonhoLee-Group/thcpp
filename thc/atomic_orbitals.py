@@ -16,9 +16,6 @@ class AOTHC:
     def __init__(self, supercell):
         self.coords = gen_grid.gen_uniform_grids(supercell)
         self.aoR = numint.eval_ao(supercell, self.coords)
-        print ("# Number of electrons: %d" % sum(supercell.nelec))
-        print ("# Number of grid points per basis function: %d" % self.aoR.shape[0])
-        print ("# Number of basis functions: %d" % self.aoR.shape[1])
         self.norm = supercell.vol/self.coords.shape[0]
         self.nmo = self.aoR.shape[1]
         self.rgrid_shape = numpy.array(supercell.gs)*2+1
@@ -32,6 +29,10 @@ class AOTHC:
         self.comm = MPI.COMM_WORLD
         self.kmeans = thc.utils.KMeans(self.coords, comm=self.comm)
         numpy.random.seed(7)  
+        if self.comm.Get_rank() == 0:
+            print ("# Number of electrons: %d" % sum(supercell.nelec))
+            print ("# Number of grid points per basis function: %d" % self.aoR.shape[0])
+            print ("# Number of basis functions: %d" % self.aoR.shape[1])
 
     def calculate_density(self):
         self.t_rho = time.time()
@@ -42,16 +43,14 @@ class AOTHC:
         return rho
 
     def kernel(self):
-        print ("c CCt_rank sum_ov max_ovlp approx_eri t_kmeans t_lsq t_fft t_eeval")
+        if self.comm.Get_rank() == 0:
+            print ("c sum_ov max_ovlp msq_ovlp approx_eri t_kmeans t_lsq t_fft t_eeval")
         for c in range(self.cmin, self.cmax):
-            nPts = c*self.nmo
-            IPts = numpy.sort(numpy.random.choice(self.ngs,nPts,replace=False))
-            IPts = self.kmeans.kernel(self.rho, self.coords[IPts,:].copy())
+            self.single(c, print_header=False)
 
             for n in range(nPts-1):
                 assert(IPts[n]!=IPts[n+1])
 
-            # shape (Nmu,nmo)
             aoR_mu = self.aoR[IPts,:].copy() 
 
             # shape (Nmu,ngs)
