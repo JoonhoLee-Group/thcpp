@@ -2,6 +2,7 @@ import time
 import numpy
 from operator import itemgetter
 from functools import reduce
+import h5py
 from mpi4py import MPI
 from pyscf import lib
 from pyscf.pbc import gto,scf,tools,df,ao2mo
@@ -48,21 +49,25 @@ class AOTHC:
         for c in range(self.cmin, self.cmax):
             self.single(c, print_header=False)
 
+    def dump_data(self, CZt, CCt):
+        with h5py.File('thc_data.h5', 'w') as h5f:
+            h5f.create_dataset('CZt', data=CZt)
+            h5f.create_dataset('CCt', data=CCt)
+
+    def single(self, c, print_header=False, solver='numpy'):
+        nPts = c*self.nmo
+        IPts = numpy.sort(numpy.random.choice(self.ngs, nPts, replace=False))
+        IPts = self.kmeans.kernel(self.rho, self.coords[IPts,:].copy())
+        if self.comm.Get_rank() == 0: 
             for n in range(nPts-1):
                 assert(IPts[n]!=IPts[n+1])
 
             aoR_mu = self.aoR[IPts,:].copy() 
-
-            # shape (Nmu,ngs)
-            CZt = numpy.dot(aoR_mu, self.aoR.T)
-            CZt = CZt*CZt
-
-            # shape (Nmu,Nmu)
-            CCt = CZt[:,IPts].copy()
+            (CZt, CCt) = self.construct_cz_matrices(IPts, aoR_mu)
 
             # shape (Nmu,ngs)
             t_lsq = time.time()
-            IVecs, lstsq_residual, CCt_rank, CCt_singular_values = numpy.linalg.lstsq(CCt,CZt)
+            IVecs = self.least_squares_solver(CCt, CZt, solver)
             t_lsq = time.time() - t_lsq
 
             # testing overlap
@@ -72,7 +77,8 @@ class AOTHC:
                 mu_int[n] = sum(IVecs[n,:]) * self.norm
                 aoR2[n,:] = aoR_mu[n,:]*mu_int[n]
 
-            ov = numpy.dot(aoR_mu.T, aoR2) - self.overlap
+            delta_ov = numpy.dot(aoR_mu.T, aoR2) - self.overlap
+            msq_ov = numpy.sum(delta_ov**2.0)**0.5 / delta_ov.size
 
             # shape (Nmu,ngs)
             t_fft = time.time()
@@ -94,6 +100,25 @@ class AOTHC:
             prod = psum.conj()*psum
             approx_eri = numpy.einsum('m,mn,n', prod, Muv, prod)
             t_eeval = time.time() - t_eeval
-            t_kmeans = 0
-            print ("%d %d %f %f %f %f %f %f %f"%(c, CCt_rank, numpy.sum(ov), numpy.max(ov),
-                   approx_eri, t_kmeans, t_lsq, t_fft, t_eeval))
+            if print_header:
+                print ("c sum_ov max_ovlp msq_ovlp approx_eri t_kmeans t_lsq t_fft t_eeval")
+            print ("%d %.10e %.10e %.10e %.10e %f %f %f %f"%(c,
+                   numpy.sum(delta_ov), numpy.max(delta_ov),
+                   msq_ov, approx_eri, self.kmeans.t_kmeans, t_lsq, t_fft, t_eeval))
+
+    def construct_cz_matrices(self, IPts, aoR_mu):
+        # shape (Nmu,ngs)
+        CZt = numpy.dot(aoR_mu, self.aoR.T)
+        CZt = CZt*CZt
+        # shape (Nmu,Nmu)
+        CCt = CZt[:,IPts].copy()
+        return (CZt, CCt)
+
+    def least_squares_solver(self, x, y, solver='numpy'):
+        if solver == 'numpy':
+            IVecs, lstsq_residual, CCt_rank, CCt_singular_values = (
+                    numpy.linalg.lstsq(x, y)
+            )
+        else:
+            IVecs = numpy.dot(numpy.linalg.pinv(x), y)
+        return IVecs

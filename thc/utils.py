@@ -9,17 +9,49 @@ class KMeans:
         self.comm = comm
         self.nprocs = comm.Get_size()
         self.rank = comm.Get_rank()
-        self.nlocal = len(grid) // self.nprocs
-        self.neven = self.nlocal * self.nprocs
-        self.nleft = len(grid) - self.neven 
+        npoints = len(grid)
+        self.send_counts = (npoints//self.nprocs) * numpy.ones(self.nprocs,
+                                                               dtype=numpy.int64)
+        self.disps = numpy.zeros(self.nprocs, dtype=numpy.int64)
+        remainder = npoints % self.nprocs
+        disp = 0
+        for i in range(0, self.nprocs):
+            if i < remainder:
+                self.send_counts[i] += 1
+            self.disps[i] = disp 
+            # print (self.rank, i, disp, self.disps[i])
+            disp += self.send_counts[i]
+        # if self.rank == 0:
+            # print ("SC: ", self.send_counts)
+            # print ("DISP: ", self.disps)
         # distribute grid
-        self.grid = self.distribute(grid)
-        self.global_grid = grid
+        self.grid = self.simple_dist(grid)
+        if self.rank == 0:
+            self.global_grid = grid
         self.max_it = max_it
         self.thresh = thresh
 
+    def simple_dist(self, array):
+        start = self.disps[self.rank]
+        end = self.disps[self.rank] + self.send_counts[self.rank]
+        # print ("SE", self.rank, start, end)
+        return array[start:end]
+
+    def distribute_test(self, array):
+        if self.rank == 0:
+            sendbuf = [array, tuple(self.send_counts),
+                       tuple(self.disps), MPI.DOUBLE]
+        else:
+            sendbuf = None
+        if len(array.shape) == 2:
+            recv_shape = (self.send_counts[self.rank], array.shape[1])
+        else:
+            recv_shape = self.send_counts[self.rank]
+        recv_buf = numpy.zeros(recv_shape, dtype=array.dtype)
+        self.comm.Scatterv(sendbuf, recvbuf, root=0)
+        return recvbuf
+
     def distribute(self, array):
-        # pad last processor grid with zeros to avoid scatterv
         if self.rank == 0:
             if self.nleft > 0:
                 if len(array.shape) == 2:
@@ -79,7 +111,7 @@ class KMeans:
         # weights are padded with zeros for processor with fewer grid
         # points.
         self.t_kmeans = time.time()
-        self.weights = self.distribute(weights)
+        self.weights = self.simple_dist(weights)
         ngs = self.grid.shape[0] 
         nmu = centroids.shape[0] 
         for t in range(self.max_it):
@@ -87,8 +119,8 @@ class KMeans:
             X = self.classify(self.grid, centroids)
             # Global reduce
             c_new = self.centroids(X, nmu)
-            if t == 67:
-                print ("NEw: ", c_new)
+            # if t == 67:
+                # print ("NEw: ", c_new)
             d = numpy.linalg.norm(c_new-centroids)
             if d < self.thresh:
                 self.t_kmeans = time.time() - self.t_kmeans
