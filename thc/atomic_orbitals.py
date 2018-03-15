@@ -51,6 +51,7 @@ class AOTHC:
 
     def dump_data(self, CZt, CCt):
         with h5py.File('thc_data.h5', 'w') as h5f:
+            print ("Array sizes: ", CZt.nbytes / 1e9, CCt.nbytes / 1e9)
             h5f.create_dataset('CZt', data=CZt)
             h5f.create_dataset('CCt', data=CCt)
 
@@ -105,6 +106,29 @@ class AOTHC:
             print ("%d %.10e %.10e %.10e %.10e %f %f %f %f"%(c,
                    numpy.sum(delta_ov), numpy.max(delta_ov),
                    msq_ov, approx_eri, self.kmeans.t_kmeans, t_lsq, t_fft, t_eeval))
+
+    def read_interpolating_vectors(self, filename):
+        data = h5py.File(filename, 'r')
+        return data['interpolating_vectors'][:]
+
+    def dump_muv(self, muv):
+        with h5py.File('muv.h5', 'w') as h5f:
+            h5f.create_dataset('muv', data=muv)
+
+    def construct_muv(self, ivecs):
+        ivecsG = tools.fft(ivecs, self.cell.gs)
+
+        # shape (ngs,)
+        coulG = (
+            tools.get_coulG(self.cell, k=numpy.zeros(3),
+                            gs=self.cell.gs)*self.cell.vol/self.ngs**2
+        )
+
+        ivecsG *= numpy.sqrt(coulG)
+
+        Muv = numpy.dot(ivecsG,ivecsG.T.conj())
+
+        return Muv
 
     def construct_cz_matrices(self, IPts, aoR_mu):
         # shape (Nmu,ngs)
