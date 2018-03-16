@@ -28,15 +28,12 @@ int main(int argc, char* argv[])
     double tlsq = clock();
     std::cout << "Performing least squares solve." << std::endl;
     MatrixOperations::least_squares_lapacke(CCt, CZt, nmu, nmu, ngrid);
-    std::cout << MatrixOperations::vector_sum(CZt) << std::endl;
     tlsq = clock() - tlsq;
     std::cout << "Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
   } else {
     double tlsq_ft = clock();
     std::cout << "Performing fortran interface least squares solve." << std::endl;
-    std::cout << MatrixOperations::vector_sum(CZt) << std::endl;
     MatrixOperations::least_squares(CCt.data(), CZt.data(), nmu, nmu, ngrid);
-    std::cout << MatrixOperations::vector_sum(CZt) << std::endl;
     tlsq_ft = clock() - tlsq_ft;
     std::cout << "Time for fortran interface least squares solve : " << tlsq_ft / CLOCKS_PER_SEC << " seconds" << std::endl;
   }
