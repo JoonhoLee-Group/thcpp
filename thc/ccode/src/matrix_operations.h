@@ -3,8 +3,6 @@
 #include <iostream>
 #include <vector>
 #include "mkl.h"
-#include "mkl_lapack.h"
-#include "mkl_lapacke.h"
 
 namespace MatrixOperations
 {
@@ -47,9 +45,7 @@ inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
 // Testing C interface to lapack. Assumes arrays are stored in row major format.
 inline void least_squares_lapacke(std::vector<double> &A, std::vector<double> &B, int nrow, int ncol, int nrhs)
 {
-  const char transa = 'N';
-  std::vector<double> WORK(1);
-  int lwork = -1, info;
+  int info;
   info = LAPACKE_dgels(LAPACK_ROW_MAJOR, 'N', nrow, ncol, nrhs, A.data(), ncol, B.data(), nrhs);
 }
 
