@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include "mkl.h"
+#include "mkl_lapack.h"
 #include "mkl_lapacke.h"
 
 namespace MatrixOperations
@@ -29,43 +30,27 @@ inline void product(int M, int N, int K, T one,
   dgemm(&transa, &transb, &N, &M, &K, &one, B, &LDB, A, &LDA, &zero, C, &LDC);  
 }
 
-inline std::vector<double> least_squares(std::vector<double> &A, std::vector<double> &B, int nrow, int ncol, int nrhs)
+// Using native fortran interface to lapack. Assumes arrays are in column major format.
+inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
 {
-  const char transa = 'N';
-  std::vector<double> AT(nrow*ncol), BT(nrow*nrhs), SOL(nrow*nrhs), WORK(1);
-  int lwork = -1, info;
-  // Transpose A and B matrices for fortran formatting.
-  for (int i = 0; i < nrow; i++) {
-    for (int j = 0; j < ncol; j++) {
-      AT[j*nrow+i] = A[i*ncol+j]; 
-    }
-  }
-  std::cout << "AT " << std::endl;
-  for (int i = 0; i < nrow; i++) {
-    for (int j = 0; j < nrhs; j++) {
-      BT[j*nrow+i] = B[i*nrhs+j]; 
-    }
-  }
-  std::cout << "BT " << std::endl;
   const char trans = 'N';
-  dgels(&trans, &nrow, &ncol, &nrhs, AT.data(), &nrow, BT.data(), &nrhs, WORK.data(), &lwork, &info);
-  std::cout << "DGELS " <<  " " << B.size() << " " << nrow*nrhs << std::endl;
-  // Transpose array to row-major format.
-  for (int i = 0; i < nrow; i++) {
-    for (int j = 0; j < nrhs; j++) {
-      SOL[i*nrhs+j] = BT[j*nrow+i];
-    }
-  }
-  std::cout << "SOL" << "  " << lwork << " " << info << " " << vector_sum(SOL) << " " << vector_sum(BT) << std::endl;
-  return SOL;
+  int lwork = -1, info;
+  std::vector<double> WORK(1);
+  // Workspace query.
+  dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
+  lwork = WORK[0];
+  WORK.resize(lwork);
+  // Actually perform least squares.
+  dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
 }
+
+// Testing C interface to lapack. Assumes arrays are stored in row major format.
 inline void least_squares_lapacke(std::vector<double> &A, std::vector<double> &B, int nrow, int ncol, int nrhs)
 {
   const char transa = 'N';
   std::vector<double> WORK(1);
   int lwork = -1, info;
-  // Transpose A and B matrices for fortran formatting.
-  info = LAPACKE_dgels(LAPACK_ROW_MAJOR, 'N', nrow, ncol, nrhs, A.data(), nrow, B.data(), nrhs);
+  info = LAPACKE_dgels(LAPACK_ROW_MAJOR, 'N', nrow, ncol, nrhs, A.data(), ncol, B.data(), nrhs);
 }
 
 }
