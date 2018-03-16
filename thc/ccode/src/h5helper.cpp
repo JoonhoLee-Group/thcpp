@@ -7,10 +7,9 @@ namespace H5Helper
 const int H5ERROR = 11;
 
 void read_matrix(H5::H5File matrix_file, const H5std_string data_name,
-                  std::vector<double> &matrix, int &nrow, int &ncol)
+                  std::vector<double> &matrix, std::vector<hsize_t> &dims)
 {
   const int ndims = 2;
-  hsize_t dims[2];
 
   // get signal dataset
   H5::DataSet dataset = matrix_file.openDataSet(data_name);
@@ -33,26 +32,34 @@ void read_matrix(H5::H5File matrix_file, const H5std_string data_name,
   }
 
   // get dimensions
-  dataspace.getSimpleExtentDims(dims, NULL);
+  dataspace.getSimpleExtentDims(dims.data(), NULL);
 
   // allocate memory and read data
-  nrow = dims[0];
-  ncol = dims[1];
   matrix.resize(dims[0]*dims[1]);
 
-  H5::DataSpace data_mspace(ndims, dims);
+  H5::DataSpace data_mspace(ndims, dims.data());
   dataset.read(matrix.data(), H5::PredType::NATIVE_DOUBLE, data_mspace, dataspace);
 }
 
 void read_matrices(std::vector<double> &CZt, std::vector<double> &CCt,
-                   int &nmu, int &ngrid)
+                   int &nmu, int &ngrid, bool &row_major)
 {
+  std::vector<hsize_t> dims_CZt(2), dims_CCt(2);
   H5std_string filename = "thc_data.h5";
-  // open file
   H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
-  read_matrix(file, "CZt", CZt, nmu, ngrid);
-  read_matrix(file, "CCt", CCt, nmu, nmu);
-  // all done with file
+  read_matrix(file, "CZt", CZt, dims_CZt);
+  read_matrix(file, "CCt", CCt, dims_CCt);
+  if (dims_CZt[0] > dims_CZt[1]) {
+    std::cout << "Matrices are in FORTRAN / column major format." << std::endl;
+    nmu = dims_CCt[0];
+    ngrid = dims_CZt[0];
+    row_major = false;
+  } else {
+    std::cout << "Matrices are in C / row major format." << std::endl;
+    nmu = dims_CCt[0];
+    ngrid = dims_CZt[1];
+    row_major = true;
+  }
   file.close();
 }
 
