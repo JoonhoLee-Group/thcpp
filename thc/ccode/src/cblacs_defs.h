@@ -1,5 +1,5 @@
-#ifndef BLACS_DEFS_H
-#define BLACS_DEFS_H
+#ifndef CBLACS_DEFS_H
+#define CBLACS_DEFS_H
 extern "C" {
   void Cblacs_pinfo(int* myid, int* numproc);
   void Cblacs_get(int, int, int* ctxt);
