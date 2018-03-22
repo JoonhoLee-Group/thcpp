@@ -1,6 +1,7 @@
 #include <vector>
 #include "distributed_matrix.h"
 #include "cblacs_defs.h"
+#include "scalapack_defs.h"
 
 namespace DistributedMatrix
 {
