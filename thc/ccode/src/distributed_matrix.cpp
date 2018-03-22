@@ -24,7 +24,6 @@ namespace DistributedMatrix
     // Setup descriptor arrays for block cyclic distribution.
     initialise_discriptors(ctxt, root_ctxt);
     // Allocate memory.
-    global_data.resize(nrows*ncols);
     local_data.resize(local_nrows*local_ncols);
   }
   Matrix::Matrix(std::string filename, std::string name, int block_m, int block_n,
