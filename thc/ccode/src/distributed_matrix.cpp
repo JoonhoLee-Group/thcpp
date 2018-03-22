@@ -41,11 +41,14 @@ namespace DistributedMatrix
       std::cout << "Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;
       double memory = UTILS::get_memory(global_data);
       std::cout << "Memory usage for " << name << ": " << memory << " GB" << std::endl;
+      std::cout << "Assuming matrices are in FORTRAN / column major format." << std::endl;
       file.close();
     }
     MPI_Bcast(dims.data(), 2, MPI::UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
-    nrows = dims[0];
-    ncols = dims[1];
+    // Matrices have been transposed to Fortran ordering before reading from hdf5 so need
+    // to swap dimensions for rows and columns.
+    nrows = dims[1];
+    ncols = dims[0];
     block_nrows = block_m;
     block_ncols = block_n;
     // Offsets.
