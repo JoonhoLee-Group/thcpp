@@ -11,8 +11,8 @@ namespace DistributedMatrix
   class Matrix
   {
     public:
-      Matrix(int nrows, int ncols, int block_rows, int block_cols, int ctxt, int root_ctxt);
-      Matrix(std::string filename, std::string name, int block_rows, int block_cols, int ctxt, int root_ctxt, int rank);
+      Matrix(int nrows, int ncols, int block_rows, int block_cols, int &ctxt, int &root_ctxt);
+      Matrix(std::string filename, std::string name, int block_rows, int block_cols, int &ctxt, int &root_ctxt, int rank);
       ~Matrix();
       void gather_block_cyclic(int ctxt);
       void scatter_block_cyclic(int ctxt);

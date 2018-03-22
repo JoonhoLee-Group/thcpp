@@ -11,7 +11,7 @@
 namespace DistributedMatrix
 {
   // Constructor without having data.
-  Matrix::Matrix(int m, int n, int block_m, int block_n, int ctxt, int root_ctxt)
+  Matrix::Matrix(int m, int n, int block_m, int block_n, int &ctxt, int &root_ctxt)
   {
     nrows = m;
     ncols = n;
@@ -28,7 +28,7 @@ namespace DistributedMatrix
     local_data.resize(local_nrows*local_ncols);
   }
   Matrix::Matrix(std::string filename, std::string name, int block_m, int block_n,
-                 int ctxt, int root_ctxt, int rank)
+                 int &ctxt, int &root_ctxt, int rank)
   {
     std::vector<hsize_t> dims(2);
     if (rank == 0) {
