@@ -12,9 +12,11 @@ namespace DistributedMatrix
   {
     public:
       Matrix(int nrows, int ncols, int block_rows, int block_cols, int ctxt, int root_ctxt);
+      Matrix(std::string filename, std::string name, int block_rows, int block_cols, int ctxt, int root_ctxt, int rank);
       ~Matrix();
       void gather_block_cyclic(int ctxt);
       void scatter_block_cyclic(int ctxt);
+      void initialise_discriptors(int ctxt, int root_ctxt);
       // global matrix dimensions
       int nrows;
       int ncols;
