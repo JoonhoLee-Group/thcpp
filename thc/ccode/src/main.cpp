@@ -24,18 +24,10 @@ int main(int argc, char* argv[])
   std::cout << "Memory usage for CCt: " << mem_CCt << " GB" << std::endl;
   std::cout << "Memory usage for CZt: " << mem_CZt << " GB" << std::endl;
   std::cout << "Total memory usage: " << mem_CCt + mem_CZt << " GB" << std::endl;
-  if (row_major) {
-    double tlsq = clock();
-    std::cout << "Performing least squares solve." << std::endl;
-    MatrixOperations::least_squares_lapacke(CCt, CZt, nmu, nmu, ngrid);
-    tlsq = clock() - tlsq;
-    std::cout << "Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
-  } else {
-    double tlsq_ft = clock();
-    std::cout << "Performing fortran interface least squares solve." << std::endl;
-    MatrixOperations::least_squares(CCt.data(), CZt.data(), nmu, nmu, ngrid);
-    tlsq_ft = clock() - tlsq_ft;
-    std::cout << "Time for fortran interface least squares solve : " << tlsq_ft / CLOCKS_PER_SEC << " seconds" << std::endl;
-  }
+  double tlsq = clock();
+  std::cout << "Performing serial least squares solve." << std::endl;
+  MatrixOperations::least_squares(CCt.data(), CZt.data(), nmu, nmu, ngrid);
+  tlsq = clock() - tlsq;
+  std::cout << "Time for serial least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
   H5Helper::write_interpolating_points(CZt, nmu, ngrid);
 }
