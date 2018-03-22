@@ -38,8 +38,10 @@ namespace DistributedMatrix
       // Read data from file.
       H5Helper::read_matrix(file, name, global_data, dims);
       tread = clock() - tread;
-      double memory = UTILS::get_memory(CCt);
       std::cout << "Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;
+      double memory = UTILS::get_memory(global_data);
+      std::cout << "Memory usage for " << name << ": " << memory << " GB" << std::endl;
+      file.close();
     }
     MPI_Bcast(dims.data(), 2, MPI::UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
     nrows = dims[0];
@@ -54,6 +56,10 @@ namespace DistributedMatrix
     initialise_discriptors(ctxt, root_ctxt);
     // Store for local arrays.
     local_data.resize(local_nrows*local_ncols);
+    if (rank == 0) {
+      double memory = UTILS::get_memory(local_data);
+      std::cout << "Local memory usage (on root processor) for " << name << ": " << memory << " GB" << std::endl;
+    }
   }
   // Initialise descriptor arrays for block cyclic distributions.
   void Matrix::initialise_discriptors(int ctxt, int root_ctxt)
