@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
   const double one = 1.0, zero = 0.0;
   bool row_major;
   int proc_rows = 2, proc_cols = 2;
-  int block_rows = 100, block_cols = 100;
+  int block_rows = 64, block_cols = 64;
   int myid, myrow, mycol, numproc, ctxt, ctxt_sys, root_ctxt;
   // Initialise blacs context.
   Cblacs_pinfo(&myid, &numproc);
@@ -46,12 +46,15 @@ int main(int argc, char* argv[])
   CCt.scatter_block_cyclic(ctxt);
 
   double tlsq = clock();
-  if (root) std::cout << "Performing serial least squares solve." << std::endl;
+  if (root) {
+    std::cout << "Performing least squares solve." << std::endl;
+    std::cout << MatrixOperations::vector_sum(CZt.global_data) << " " << MatrixOperations::vector_sum(CCt.global_data) << " " << std::endl;
+  }
   MatrixOperations::least_squares(CCt, CZt);
   CZt.gather_block_cyclic(ctxt);
   tlsq = clock() - tlsq;
   if (root) {
-    std::cout << "Time for serial least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
+    std::cout << "Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
     std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.global_data) << std::endl;
     //H5Helper::write_interpolating_points(CZt, nmu, ngrid);
   }
