@@ -50,13 +50,23 @@ int main(int argc, char* argv[])
     std::cout << "Performing least squares solve." << std::endl;
     std::cout << MatrixOperations::vector_sum(CZt.global_data) << " " << MatrixOperations::vector_sum(CCt.global_data) << " " << std::endl;
   }
+  //double local_sum, global_sum;
+  //CZt.gather_block_cyclic(ctxt);
+  //local_sum = MatrixOperations::vector_sum(CZt.local_data);
+  //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  //if (root) std::cout << "REDUCE : " << global_sum << " " << CZt.ncols << std::endl;
+  //DistributedMatrix::Matrix C(CCt.nrows, CZt.ncols, block_rows, block_cols, ctxt, root_ctxt); 
+  //std::cout << C.nrows << " " << C.ncols << " " << CZt.ncols << " " << CZt.nrows << std::endl;
+  //MatrixOperations::product(CCt, CZt, C);
+  //C.gather_block_cyclic(ctxt);
+  //if (root) std::cout << "MM: " << MatrixOperations::vector_sum(C.global_data) << std::endl;
   MatrixOperations::least_squares(CCt, CZt);
   CZt.gather_block_cyclic(ctxt);
   tlsq = clock() - tlsq;
   if (root) {
     std::cout << "Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
     std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.global_data) << std::endl;
-    //H5Helper::write_interpolating_points(CZt, nmu, ngrid);
+    H5Helper::write_interpolating_points(CZt.global_data, CZt.nrows, CZt.ncols);
   }
   MPI_Finalize();
 }
