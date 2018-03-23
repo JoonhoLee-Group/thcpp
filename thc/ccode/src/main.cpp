@@ -6,6 +6,7 @@
 #include "h5helper.h"
 #include "matrix_operations.h"
 #include "cblacs_defs.h"
+#include "fftw3.h"
 
 int main(int argc, char* argv[])
 {
