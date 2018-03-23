@@ -24,25 +24,23 @@ int main(int argc, char* argv[])
   bool row_major;
   int proc_rows = 2, proc_cols = 2;
   int block_rows = 64, block_cols = 64;
-  int myid, myrow, mycol, numproc, ctxt, ctxt_sys, root_ctxt;
+  int myid, myrow, mycol, numproc, ctxt, ctxt_sys, root_ctxt, ccyc_ctxt;
   // Initialise blacs context.
   Cblacs_pinfo(&myid, &numproc);
   //std::cout << "PINFO: " << std::endl;
   Cblacs_get(0, 0, &ctxt_sys);
   ctxt = ctxt_sys;
   root_ctxt = ctxt_sys;
-  //std::cout << "GET: " << std::endl;
+  ccyc_ctxt = ctxt_sys;
   // Our actual processor distribution.
   Cblacs_gridinit(&ctxt, "Row-major", proc_rows, proc_cols);
-  //std::cout << "INIT: " << std::endl;
   // Initalise grid of size 1 on root so we can reduce distributed matrices.
   Cblacs_gridinit(&root_ctxt, "Row-major", 1, 1);
-  //std::cout << "ROOT: " << std::endl;
-  //std::cout << "CZT: " << std::endl;
+  Cblacs_gridinit(&ccyc_ctxt, "Row-major", 1, proc_rows*proc_cols);
   DistributedMatrix::Matrix CZt("thc_data.h5", "CZt", block_rows,
-                                block_cols, ctxt, root_ctxt, rank);
+                                block_cols, ctxt, root_ctxt, ccyc_ctxt, rank);
   DistributedMatrix::Matrix CCt("thc_data.h5", "CCt", block_rows,
-                                block_cols, ctxt, root_ctxt, rank);
+                                block_cols, ctxt, root_ctxt, ccyc_ctxt, rank);
   CZt.scatter_block_cyclic(ctxt);
   CCt.scatter_block_cyclic(ctxt);
 
@@ -69,7 +67,7 @@ int main(int argc, char* argv[])
     std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.global_data) << std::endl;
     H5Helper::write_interpolating_points(CZt.global_data, CZt.nrows, CZt.ncols);
   }
-  DistributedMatrix::Matrix CZ(CZt.ncols, CZt.nrows, block_rows, block_cols, ctxt, root_ctxt);
+  DistributedMatrix::Matrix CZ(CZt.ncols, CZt.nrows, block_rows, block_cols, ctxt, root_ctxt, ccyc_ctxt);
   MatrixOperations::transpose(CZt, CZ);
   if (root) CZ.global_data.resize(CZ.nrows*CZ.ncols);
   CZ.gather_block_cyclic(ctxt);
