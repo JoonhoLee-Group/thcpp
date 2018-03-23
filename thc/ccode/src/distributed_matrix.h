@@ -2,6 +2,7 @@
 #define DISTRIBUTED_MATRIX_H
 #include <iostream>
 #include <vector>
+#include <complex>
 
 // Operations for matrices distributed using scalapack.
 // Asumes column major (Fortran) order for layout.
@@ -15,6 +16,7 @@ namespace DistributedMatrix
       Matrix(std::string filename, std::string name, int block_rows, int block_cols, int &ctxt, int &root_ctxt, int &ccyc_ctxt, int rank);
       ~Matrix();
       void gather_block_cyclic(int ctxt);
+      void gather_fft(int ctxt);
       void scatter_block_cyclic(int ctxt);
       void redistribute_to_column_cyclic(int ctxt);
       void initialise_discriptors(int ctxt, int root_ctxt, int ccyc_ctxt);
@@ -45,6 +47,7 @@ namespace DistributedMatrix
       // Global and local data stores for matrix.
       std::vector<double> global_data, local_data, ccyc_data;
       std::vector<int> desc_global, desc_local, desc_ccyc;
+      std::vector<std::complex<double> > fft_data, cglobal_data;
   };
 }
 #endif

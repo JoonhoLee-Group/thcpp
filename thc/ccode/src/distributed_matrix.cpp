@@ -25,6 +25,8 @@ namespace DistributedMatrix
     initialise_discriptors(ctxt, root_ctxt, ccyc_ctxt);
     // Allocate memory.
     local_data.resize(local_nrows*local_ncols);
+    ccyc_data.resize(nrows*ccyc_ncols);
+    fft_data.resize(nrows*ccyc_ncols);
   }
   Matrix::Matrix(std::string filename, std::string name, int block_m, int block_n,
                  int &ctxt, int &root_ctxt, int &ccyc_ctxt, int rank)
@@ -41,6 +43,7 @@ namespace DistributedMatrix
       double memory = UTILS::get_memory(global_data);
       std::cout << "Memory usage for " << name << ": " << memory << " GB" << std::endl;
       std::cout << "Assuming matrices are in FORTRAN / column major format." << std::endl;
+      std::cout << "Matrix shape: (" << dims[1] << ", " << dims[0] << ")" << std::endl;
       file.close();
     }
     MPI_Bcast(dims.data(), 2, MPI::UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
@@ -120,6 +123,14 @@ namespace DistributedMatrix
     pdgemr2d_(&nrows, &ncols,
               local_data.data(), &init_row_idx, &init_row_idx, desc_local.data(),
               ccyc_data.data(), &init_row_idx, &init_col_idx, desc_ccyc.data(),
+              &ctxt);
+  }
+  void Matrix::gather_fft(int ctxt)
+  {
+    if (cglobal_data.size() == 0) cglobal_data.resize(nrows*ncols);
+    pzgemr2d_(&nrows, &ncols,
+              fft_data.data(), &init_row_idx, &init_row_idx, desc_ccyc.data(),
+              cglobal_data.data(), &init_row_idx, &init_col_idx, desc_global.data(),
               &ctxt);
   }
   // Destructor.
