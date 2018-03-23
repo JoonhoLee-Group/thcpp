@@ -79,6 +79,17 @@ inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
   dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
 }
 
+inline void transpose(Matrix::Matrix &A, Matrix::Matrix &AT)
+{
+  char trans = 'T';
+  double one = 1.0, zero = 0.0;
+  pdgeadd_(&trans, &A.ncols, &A.nrows,
+           &one,
+           A.local_data.data(), &A.init_row_idx, &A.init_col_idx, A.desc_local.data(),
+           &zero,
+           AT.local_data.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc_local.data());
+}
+
 // Testing C interface to lapack. Assumes arrays are stored in row major format.
 //inline void least_squares_lapacke(std::vector<double> &A, std::vector<double> &B, int nrow, int ncol, int nrhs)
 //{
