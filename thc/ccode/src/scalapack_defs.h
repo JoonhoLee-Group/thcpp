@@ -13,6 +13,10 @@ extern "C" {
                  double *a, int *ia, int *ja, int *desca,
                  double *b, int *ib, int *jb, int *descb,
                  int *ictxt);
+  void pzgemr2d_(int *m, int *n,
+                 std::complex<double> *a, int *ia, int *ja, int *desca,
+                 std::complex<double> *b, int *ib, int *jb, int *descb,
+                 int *ictxt);
   // OK this is really (p)blas.
   // Matrix-Matrix multiplication.
   void pdgemm_(char * transa, char *transb, int *m, int *n, int *k, 
