@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
   //local_sum = MatrixOperations::vector_sum(CZt.local_data);
   //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   //if (root) std::cout << "REDUCE : " << global_sum << " " << CZt.ncols << std::endl;
-  //DistributedMatrix::Matrix C(CCt.nrows, CZt.ncols, block_rows, block_cols, ctxt, root_ctxt); 
+  //DistributedMatrix::Matrix C(CCt.nrows, CZt.ncols, block_rows, block_cols, ctxt, root_ctxt);
   //std::cout << C.nrows << " " << C.ncols << " " << CZt.ncols << " " << CZt.nrows << std::endl;
   //MatrixOperations::product(CCt, CZt, C);
   //C.gather_block_cyclic(ctxt);
@@ -69,5 +69,9 @@ int main(int argc, char* argv[])
     std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.global_data) << std::endl;
     H5Helper::write_interpolating_points(CZt.global_data, CZt.nrows, CZt.ncols);
   }
+  DistributedMatrix::Matrix CZ(CZt.ncols, CZt.nrows, block_rows, block_cols, ctxt, root_ctxt);
+  MatrixOperations::transpose(CZt, CZ);
+  if (root) CZ.global_data.resize(CZ.nrows*CZ.ncols);
+  CZ.gather_block_cyclic(ctxt);
   MPI_Finalize();
 }
