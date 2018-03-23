@@ -79,7 +79,7 @@ inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
   dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
 }
 
-inline void transpose(Matrix::Matrix &A, Matrix::Matrix &AT)
+inline void transpose(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &AT)
 {
   char trans = 'T';
   double one = 1.0, zero = 0.0;
