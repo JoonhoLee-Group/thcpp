@@ -11,7 +11,7 @@
 namespace DistributedMatrix
 {
   // Constructor without having data.
-  Matrix::Matrix(int m, int n, int block_m, int block_n, int &ctxt, int &root_ctxt)
+  Matrix::Matrix(int m, int n, int block_m, int block_n, int &ctxt, int &root_ctxt, int &ccyc_ctxt)
   {
     nrows = m;
     ncols = n;
@@ -22,12 +22,12 @@ namespace DistributedMatrix
     init_row_idx = 1; // fortran indexing.
     init_col_idx = 1;
     // Setup descriptor arrays for block cyclic distribution.
-    initialise_discriptors(ctxt, root_ctxt);
+    initialise_discriptors(ctxt, root_ctxt, ccyc_ctxt);
     // Allocate memory.
     local_data.resize(local_nrows*local_ncols);
   }
   Matrix::Matrix(std::string filename, std::string name, int block_m, int block_n,
-                 int &ctxt, int &root_ctxt, int rank)
+                 int &ctxt, int &root_ctxt, int &ccyc_ctxt, int rank)
   {
     std::vector<hsize_t> dims(2);
     if (rank == 0) {
@@ -55,16 +55,17 @@ namespace DistributedMatrix
     init_row_idx = 1; // fortran indexing.
     init_col_idx = 1;
     // Setup descriptor arrays for block cyclic distribution.
-    initialise_discriptors(ctxt, root_ctxt);
+    initialise_discriptors(ctxt, root_ctxt, ccyc_ctxt);
     // Store for local arrays.
     local_data.resize(local_nrows*local_ncols);
+    ccyc_data.resize(nrows*ccyc_ncols);
     if (rank == 0) {
       double memory = UTILS::get_memory(local_data);
       std::cout << "Local memory usage (on root processor) for " << name << ": " << memory << " GB" << std::endl;
     }
   }
   // Initialise descriptor arrays for block cyclic distributions.
-  void Matrix::initialise_discriptors(int ctxt, int root_ctxt)
+  void Matrix::initialise_discriptors(int ctxt, int root_ctxt, int ccyc_ctxt)
   {
     // Query location in processor grid.
     Cblacs_gridinfo(ctxt, &proc_nrows, &proc_ncols, &proc_row, &proc_col);
@@ -74,6 +75,7 @@ namespace DistributedMatrix
     lld = std::max(1, local_nrows);
     desc_global.resize(9);
     desc_local.resize(9);
+    desc_ccyc.resize(9);
     // Initialise local discriptor array.
     int irsrc = 0, icsrc = 0;
     descinit_(desc_local.data(), &nrows, &ncols, &block_nrows,
@@ -87,6 +89,15 @@ namespace DistributedMatrix
       // for redistribution to work.
       desc_global[1] = -1;
     }
+    // column cyclic distribution.
+    int ncols_per_block = 1;
+    int ccyc_proc_nrows, ccyc_proc_ncols, ccyc_proc_row, ccyc_proc_col;
+    Cblacs_gridinfo(ccyc_ctxt, &ccyc_proc_nrows, &ccyc_proc_ncols, &ccyc_proc_row, &ccyc_proc_col);
+    ccyc_ncols = numroc_(&ncols, &ncols_per_block, &ccyc_proc_row, &izero, &ccyc_proc_ncols);
+    ccyc_nrows = numroc_(&nrows, &nrows, &ccyc_proc_row, &izero, &ccyc_proc_nrows);
+    descinit_(desc_ccyc.data(), &nrows, &ncols, &nrows, &ccyc_ncols,
+              &irsrc, &icsrc, &ccyc_ctxt, &nrows, &info);
+
   };
   // Scatter global matrix from root processor to childred in block cyclic distribution.
   void Matrix::scatter_block_cyclic(int ctxt)
@@ -102,6 +113,13 @@ namespace DistributedMatrix
     pdgemr2d_(&nrows, &ncols,
               local_data.data(), &init_row_idx, &init_row_idx, desc_local.data(),
               global_data.data(), &init_row_idx, &init_col_idx, desc_global.data(),
+              &ctxt);
+  }
+  void Matrix::redistribute_to_column_cyclic(int ctxt)
+  {
+    pdgemr2d_(&nrows, &ncols,
+              local_data.data(), &init_row_idx, &init_row_idx, desc_local.data(),
+              ccyc_data.data(), &init_row_idx, &init_col_idx, desc_ccyc.data(),
               &ctxt);
   }
   // Destructor.
