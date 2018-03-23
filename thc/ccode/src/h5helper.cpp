@@ -1,8 +1,9 @@
 #include <vector>
 #include <iostream>
 #include "H5Cpp.h"
+#include <complex>
 
-namespace H5Helper 
+namespace H5Helper
 {
 const int H5ERROR = 11;
 
@@ -76,6 +77,25 @@ void write_interpolating_points(std::vector<double> &IPTS, int nmu, int ngrid)
   H5::DataSet dataset = file.createDataSet(dataset_name,
                                            H5::PredType::NATIVE_DOUBLE,
                                            dataspace);
-  dataset.write(IPTS.data(), H5::PredType::NATIVE_DOUBLE); 
+  dataset.write(IPTS.data(), H5::PredType::NATIVE_DOUBLE);
+}
+
+void write_fft(std::vector<std::complex<double> > &fft, int nmu, int ngrid)
+{
+  H5std_string filename = "fft_data.h5";
+  H5std_string dataset_name = "fftd_points";
+  // open file
+  H5::CompType complex_data_type(sizeof(fft[0]));
+  complex_data_type.insertMember("r", 0, H5::PredType::NATIVE_DOUBLE);
+  complex_data_type.insertMember("i", sizeof(double), H5::PredType::NATIVE_DOUBLE);
+  H5::H5File file = H5::H5File(filename, H5F_ACC_TRUNC);
+  hsize_t dims[2];
+  dims[0] = nmu;
+  dims[1] = ngrid;
+  H5::DataSpace dataspace(2, dims);
+  H5::DataSet dataset = file.createDataSet(dataset_name,
+                                           complex_data_type,
+                                           dataspace);
+  dataset.write(fft.data(), complex_data_type);
 }
 }
