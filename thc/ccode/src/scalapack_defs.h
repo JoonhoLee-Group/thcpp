@@ -28,5 +28,11 @@ extern "C" {
                double *B, int *ib, int *jb, int *descb,
                double *WORK, int *lwork,
                int *info);
+  // Add two matrices.
+  void pdgeadd_(char *trans, int *m, int *n,
+                double *alpha,
+                double *A, int *ia, int *ja, int *desca,
+                double *beta,
+                double *C, int *ic, int *jc, int *descc);
 }
 #endif
