@@ -71,8 +71,8 @@ void write_interpolating_points(std::vector<double> &IPTS, int nmu, int ngrid)
   // open file
   H5::H5File file = H5::H5File(filename, H5F_ACC_TRUNC);
   hsize_t dims[2];
-  dims[0] = nmu;
-  dims[1] = ngrid;
+  dims[1] = nmu;
+  dims[0] = ngrid;
   H5::DataSpace dataspace(2, dims);
   H5::DataSet dataset = file.createDataSet(dataset_name,
                                            H5::PredType::NATIVE_DOUBLE,
