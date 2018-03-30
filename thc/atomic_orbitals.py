@@ -22,14 +22,14 @@ class AOTHC:
         self.rgrid_shape = numpy.array(supercell.gs)*2+1
         self.ngs = numpy.prod(self.rgrid_shape)
         assert(self.ngs == self.aoR.shape[0])
-        self.overlap = supercell.pbc_intor('cint1e_ovlp_sph') 
+        self.overlap = supercell.pbc_intor('cint1e_ovlp_sph')
         self.cmin = 5
         self.cmax = 20
         self.rho = self.calculate_density()
         self.cell = supercell
         self.comm = MPI.COMM_WORLD
         self.kmeans = thc.utils.KMeans(self.coords, comm=self.comm)
-        numpy.random.seed(7)  
+        numpy.random.seed(7)
         if self.comm.Get_rank() == 0:
             print ("# Number of electrons: %d" % sum(supercell.nelec))
             print ("# Number of grid points per basis function: %d" % self.aoR.shape[0])
@@ -61,11 +61,11 @@ class AOTHC:
         nPts = c*self.nmo
         IPts = numpy.sort(numpy.random.choice(self.ngs, nPts, replace=False))
         IPts = self.kmeans.kernel(self.rho, self.coords[IPts,:].copy())
-        if self.comm.Get_rank() == 0: 
+        if self.comm.Get_rank() == 0:
             for n in range(nPts-1):
                 assert(IPts[n]!=IPts[n+1])
 
-            aoR_mu = self.aoR[IPts,:].copy() 
+            aoR_mu = self.aoR[IPts,:].copy()
             (CZt, CCt) = self.construct_cz_matrices(IPts, aoR_mu)
 
             # shape (Nmu,ngs)
@@ -97,9 +97,9 @@ class AOTHC:
             IVecsG *= numpy.sqrt(coulG)
 
             Muv = numpy.dot(IVecsG,IVecsG.T.conj())
-            
+
             t_eeval = time.time()
-            psum = numpy.sum(aoR_mu, axis=1) 
+            psum = numpy.sum(aoR_mu, axis=1)
             prod = psum.conj()*psum
             approx_eri = numpy.einsum('m,mn,n', prod, Muv, prod)
             t_eeval = time.time() - t_eeval
