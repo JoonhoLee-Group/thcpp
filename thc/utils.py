@@ -18,7 +18,7 @@ class KMeans:
         for i in range(0, self.nprocs):
             if i < remainder:
                 self.send_counts[i] += 1
-            self.disps[i] = disp 
+            self.disps[i] = disp
             # print (self.rank, i, disp, self.disps[i])
             disp += self.send_counts[i]
         # if self.rank == 0:
@@ -89,9 +89,9 @@ class KMeans:
         for ni in range(ngs):
             #assert(w[ni] > 0.0)
             wloc[X[ni]] += self.weights[ni]
-            cloc[X[ni],:] += self.weights[ni]*self.grid[ni,:]     
-        self.comm.Allreduce(wloc, wglobal, op=MPI.SUM) 
-        self.comm.Allreduce(cloc, cglobal, op=MPI.SUM) 
+            cloc[X[ni],:] += self.weights[ni]*self.grid[ni,:]
+        self.comm.Allreduce(wloc, wglobal, op=MPI.SUM)
+        self.comm.Allreduce(cloc, cglobal, op=MPI.SUM)
         return cglobal / wglobal[:,None]
 
     # finds the closest point in the grid for every centroid and returns the
@@ -101,7 +101,7 @@ class KMeans:
             X = numpy.sort(self.classify(centroids, self.global_grid))
             # look for repeated
             for i in range(X.shape[0]-1):
-                assert( X[i] != X[i+1] ) 
+                assert( X[i] != X[i+1] )
             return X
         else:
             return None
@@ -112,8 +112,8 @@ class KMeans:
         # points.
         self.t_kmeans = time.time()
         self.weights = self.simple_dist(weights)
-        ngs = self.grid.shape[0] 
-        nmu = centroids.shape[0] 
+        ngs = self.grid.shape[0]
+        nmu = centroids.shape[0]
         for t in range(self.max_it):
             # Per processor step
             X = self.classify(self.grid, centroids)
