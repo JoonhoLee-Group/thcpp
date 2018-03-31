@@ -39,10 +39,10 @@ inline void product(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &B,
   double one = 1.0, zero = 0.0;
   pdgemm_(&transa, &transb, &A.nrows, &B.ncols, &A.ncols,
           &one,
-          A.local_data.data(), &A.init_row_idx, &A.init_col_idx, A.desc_local.data(),
-          B.local_data.data(), &B.init_row_idx, &B.init_col_idx, B.desc_local.data(),
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
           &zero,
-          C.local_data.data(), &C.init_row_idx, &C.init_col_idx, C.desc_local.data());
+          C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
 }
 
 // distributed matrix least squares solve.
@@ -53,15 +53,15 @@ inline void least_squares(DistributedMatrix::Matrix &A, DistributedMatrix::Matri
   std::vector<double> WORK(1);
   // Workspace query.
   pdgels_(&trans, &A.nrows, &A.ncols, &B.ncols,
-          A.local_data.data(), &A.init_row_idx, &A.init_col_idx, A.desc_local.data(),
-          B.local_data.data(), &B.init_row_idx, &B.init_col_idx, B.desc_local.data(),
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
           WORK.data(), &lwork, &info);
   lwork = WORK[0];
   WORK.resize(lwork);
   // Actually perform least squares.
   pdgels_(&trans, &A.nrows, &A.ncols, &B.ncols,
-          A.local_data.data(), &A.init_row_idx, &A.init_col_idx, A.desc_local.data(),
-          B.local_data.data(), &B.init_row_idx, &B.init_col_idx, B.desc_local.data(),
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
           WORK.data(), &lwork, &info);
 }
 
@@ -85,9 +85,9 @@ inline void transpose(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &A
   double one = 1.0, zero = 0.0;
   pdgeadd_(&trans, &A.ncols, &A.nrows,
            &one,
-           A.local_data.data(), &A.init_row_idx, &A.init_col_idx, A.desc_local.data(),
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
            &zero,
-           AT.local_data.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc_local.data());
+           AT.store.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc.data());
 }
 
 // Testing C interface to lapack. Assumes arrays are stored in row major format.
