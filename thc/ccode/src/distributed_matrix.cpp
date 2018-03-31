@@ -80,9 +80,9 @@ namespace DistributedMatrix
       std::cout << Grid.col << " " << Grid.row << std::endl;
       if (Grid.row == 0 && Grid.col == 0) {
         std::cout << "0" << std::endl;
-        std::cout << block_nrows << " " << block_ncols << " " << nrows << " " << ncols << " " << irsrc << " " << icsrc << " " << Grid.ctxt << " " << lld << " " << local_nr << " " << local_nc << std::endl;
-        descinit_(desc.data(), &nrows, &ncols, &block_nrows,
-                  &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
+        std::cout << block_nrows << " " << block_ncols << " " << nrows << " " << ncols << " " << irsrc << " " << icsrc << " " << Grid.ctxt << " " << lld << " " << local_nr << " " << local_nc << " " << desc.size() << std::endl;
+        descinit_(desc.data(), &nrows, &ncols, &nrows,
+                  &ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
                   &info);
       } else {
         std::cout << Grid.row << " " << Grid.col  << std::endl;

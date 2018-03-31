@@ -22,6 +22,11 @@ int main(int argc, char* argv[])
   const double one = 1.0, zero = 0.0;
   // Initialise blacs context.
   ContextHandler::BlacsHandler BH;
+  int t1, t2, t3, t4;
+  Cblacs_gridinfo(BH.Root.ctxt, &t1, &t2, &t3, &t4);
+  std::cout << "RT: " << BH.Root.ctxt << " " << t1 << " " << t2 << " " << t3 << " " << t4 << std::endl;
+  Cblacs_gridinfo(BH.Square.ctxt, &t1, &t2, &t3, &t4);
+  std::cout << "SQ: " << BH.Square.ctxt << " " << t1 << " " << t2 << " " << t3 << " " << t4 << std::endl;
   // Read aos, grid and density
   //DistributedMatrix::Matrix aoR("supercell_atomic_orbitals.h5", "aoR", )
   //DistributedMatrix::Matrix grid("supercell_atomic_orbitals.h5", "real_space_grid",
