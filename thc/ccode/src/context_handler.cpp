@@ -17,6 +17,7 @@ namespace ContextHandler
     Square = BlacsGrid(proc_rows, proc_cols);
     Column = BlacsGrid(1, proc_rows*proc_cols);
   }
+  BlacsHandler::~BlacsHandler() {}
   // Constructor for potentially non-square processor grid.
   BlacsGrid::BlacsGrid(int nr, int nc)
   {
@@ -28,4 +29,5 @@ namespace ContextHandler
     Cblacs_gridinit(&ctxt, "Row-major", nrows, ncols);
     Cblacs_gridinfo(ctxt, &nrows, &ncols, &row, &col);
   }
+  BlacsGrid::~BlacsGrid() {}
 }

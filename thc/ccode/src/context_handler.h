@@ -8,6 +8,7 @@ namespace ContextHandler
   {
       public:
         BlacsGrid() {};
+        ~BlacsGrid();
         BlacsGrid(int nr, int nc);
         int nrows, ncols;
         int row, col;
