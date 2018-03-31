@@ -3,6 +3,7 @@
 #include <time.h>
 #include "distributed_matrix.h"
 #include "scalapack_defs.h"
+#include "cblacs_defs.h"
 #include "H5Cpp.h"
 #include "h5helper.h"
 #include "utils.h"
@@ -73,11 +74,18 @@ namespace DistributedMatrix
     int irsrc = 0, icsrc = 0;
     // 1x1 grid.
     if (Grid.nrows == 1 && Grid.ncols == 1) {
-      if (Grid.row == 0 && Grid.col == 1) {
+      std::cout << "ROOT" << std::endl;
+      std::cout << Grid.col << " " << Grid.row << std::endl;
+      Cblacs_gridinfo(Grid.ctxt, &Grid.nrows, &Grid.ncols, &Grid.row, &Grid.col);
+      std::cout << Grid.col << " " << Grid.row << std::endl;
+      if (Grid.row == 0 && Grid.col == 0) {
+        std::cout << "0" << std::endl;
+        std::cout << block_nrows << " " << block_ncols << " " << nrows << " " << ncols << " " << irsrc << " " << icsrc << " " << Grid.ctxt << " " << lld << " " << local_nr << " " << local_nc << std::endl;
         descinit_(desc.data(), &nrows, &ncols, &block_nrows,
                   &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
                   &info);
       } else {
+        std::cout << Grid.row << " " << Grid.col  << std::endl;
         desc[1] = -1;
       }
     } else {
