@@ -8,7 +8,9 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 
 include_directories("${PROJECT_SOURCE_DIR}")
 
-add_executable(lstsq.x src/h5helper.cpp src/distributed_matrix.cpp src/main.cpp)
+file(GLOB SRC "src/*.cpp")
+
+add_executable(lstsq.x ${SRC})
 
 find_package(HDF5 COMPONENTS CXX)
 find_package(FFTW)
