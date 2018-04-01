@@ -13,17 +13,18 @@ namespace ContextHandler
       std::cout << "Not running on square processor grid." << std::endl;
     }
     // Initialise differenct blacs grids.
-    Root = BlacsGrid(1, 1);
-    Square = BlacsGrid(proc_rows, proc_cols);
-    Column = BlacsGrid(1, proc_rows*proc_cols);
+    Root = BlacsGrid(1, 1, rank);
+    Square = BlacsGrid(proc_rows, proc_cols, rank);
+    Column = BlacsGrid(1, proc_rows*proc_cols, rank);
   }
   BlacsHandler::~BlacsHandler() {}
   // Constructor for potentially non-square processor grid.
-  BlacsGrid::BlacsGrid(int nr, int nc)
+  BlacsGrid::BlacsGrid(int nr, int nc, int rk)
   {
     nrows = nr;
     ncols = nc;
     nprocs = nr*nc;
+    rank = rk;
     int ctxt_sys;
     Cblacs_get(0, 0, &ctxt_sys);
     ctxt = ctxt_sys;
