@@ -108,10 +108,11 @@ namespace DistributedMatrix
               tmp.data(), &init_row_idx, &init_col_idx, descb.data(),
               &ctxt);
     tmp.swap(store);
-#ifdef DEBUG
+    descb.swap(desc);
+#ifndef NDEBUG
     if (GridB.rank == 0) {
       double memory = UTILS::get_memory(store);
-      std::cout << "Local memory usage (on root processor) for " << name << ": " << memory << " GB" << std::endl;
+      std::cout << "Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
     }
 #endif
   }
