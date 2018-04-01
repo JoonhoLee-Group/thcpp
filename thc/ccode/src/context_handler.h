@@ -10,6 +10,7 @@ namespace ContextHandler
         BlacsGrid() {};
         ~BlacsGrid();
         BlacsGrid(int nr, int nc);
+        int nprocs;
         int nrows, ncols;
         int row, col;
         int ctxt;

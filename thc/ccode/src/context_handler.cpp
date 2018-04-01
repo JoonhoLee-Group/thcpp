@@ -23,6 +23,7 @@ namespace ContextHandler
   {
     nrows = nr;
     ncols = nc;
+    nprocs = nr*nc;
     int ctxt_sys;
     Cblacs_get(0, 0, &ctxt_sys);
     ctxt = ctxt_sys;
