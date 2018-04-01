@@ -66,29 +66,23 @@ namespace DistributedMatrix
   }
   void Matrix::initialise_discriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &local_nr, int &local_nc)
   {
-    local_nr = numroc_(&nrows, &block_nrows, &Grid.row,
-                       &izero, &Grid.nrows);
-    local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
-                       &Grid.ncols);
-    lld = std::max(1, local_nr);
     int irsrc = 0, icsrc = 0;
     // 1x1 grid.
-    if (Grid.nrows == 1 && Grid.ncols == 1) {
-      std::cout << "ROOT" << std::endl;
-      std::cout << Grid.col << " " << Grid.row << std::endl;
+    if (Grid.nprocs == 1) {
       Cblacs_gridinfo(Grid.ctxt, &Grid.nrows, &Grid.ncols, &Grid.row, &Grid.col);
-      std::cout << Grid.col << " " << Grid.row << std::endl;
       if (Grid.row == 0 && Grid.col == 0) {
-        std::cout << "0" << std::endl;
-        std::cout << block_nrows << " " << block_ncols << " " << nrows << " " << ncols << " " << irsrc << " " << icsrc << " " << Grid.ctxt << " " << lld << " " << local_nr << " " << local_nc << " " << desc.size() << std::endl;
         descinit_(desc.data(), &nrows, &ncols, &nrows,
-                  &ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
+                  &ncols, &irsrc, &icsrc, &Grid.ctxt, &nrows,
                   &info);
       } else {
-        std::cout << Grid.row << " " << Grid.col  << std::endl;
         desc[1] = -1;
       }
     } else {
+      local_nr = numroc_(&nrows, &block_nrows, &Grid.row,
+                         &izero, &Grid.nrows);
+      local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
+                         &Grid.ncols);
+      lld = std::max(1, local_nr);
       descinit_(desc.data(), &nrows, &ncols, &block_nrows,
                 &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
                 &info);
