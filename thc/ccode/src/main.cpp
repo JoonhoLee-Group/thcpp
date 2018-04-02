@@ -24,44 +24,47 @@ int main(int argc, char* argv[])
   ContextHandler::BlacsHandler BH;
   int t1, t2, t3, t4;
   Cblacs_gridinfo(BH.Root.ctxt, &t1, &t2, &t3, &t4);
-  std::cout << "RT: " << BH.Root.ctxt << " " << t1 << " " << t2 << " " << t3 << " " << t4 << std::endl;
   Cblacs_gridinfo(BH.Square.ctxt, &t1, &t2, &t3, &t4);
-  std::cout << "SQ: " << BH.Square.ctxt << " " << t1 << " " << t2 << " " << t3 << " " << t4 << std::endl;
-  // Read aos, grid and density
-  //DistributedMatrix::Matrix aoR("supercell_atomic_orbitals.h5", "aoR", )
-  //DistributedMatrix::Matrix grid("supercell_atomic_orbitals.h5", "real_space_grid",
-                                 //block_rows, block_cols, ctxt, root_ctxt, ccyc_ctxt,
-                                 //rank)
-  //DistributedMatrix::Matrix density("supercell_atomic_orbitals.h5", "density",
-                                    //block_rows, block_cols, ctxt, root_ctxt, ccyc_ctxt,
-                                    //rank)
   DistributedMatrix::Matrix CZt("thc_data.h5", "CZt", BH.Root, rank);
-  //DistributedMatrix::Matrix CCt("thc_data.h5", "CCt", BH.Root, rank);
-  //CZt.scatter_block_cyclic(ctxt);
-  //CCt.scatter_block_cyclic(ctxt);
+  DistributedMatrix::Matrix CCt("thc_data.h5", "CCt", BH.Root, rank);
+  if (root) {
+    std::cout << "SUm: " << MatrixOperations::vector_sum(CZt.store) << " " << MatrixOperations::vector_sum(CCt.store) << " " << std::endl;
+  }
+  CZt.redistribute(BH.Root, BH.Square);
+  CCt.redistribute(BH.Root, BH.Square);
 
-  //double tlsq = clock();
-  //if (root) {
-    //std::cout << "Performing least squares solve." << std::endl;
-    //std::cout << MatrixOperations::vector_sum(CZt.global_data) << " " << MatrixOperations::vector_sum(CCt.global_data) << " " << std::endl;
-  //}
-  //double local_sum, global_sum;
-  //CZt.gather_block_cyclic(ctxt);
-  //local_sum = MatrixOperations::vector_sum(CZt.local_data);
-  //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  //if (root) std::cout << "REDUCE : " << global_sum << " " << CZt.ncols << std::endl;
-  //DistributedMatrix::Matrix C(CCt.nrows, CZt.ncols, block_rows, block_cols, ctxt, root_ctxt);
-  //std::cout << C.nrows << " " << C.ncols << " " << CZt.ncols << " " << CZt.nrows << std::endl;
-  //MatrixOperations::product(CCt, CZt, C);
-  //C.gather_block_cyclic(ctxt);
-  //if (root) std::cout << "MM: " << MatrixOperations::vector_sum(C.global_data) << std::endl;
+  double tlsq = clock();
+  if (root) {
+    std::cout << "Performing least squares solve." << std::endl;
+  }
+  double local_sum, global_sum;
+  std::vector<int> desc(9);
+  int nr, nc;
+  //CZt.initialise_discriptor(desc, BH.Root, nr, nc);
+  //CZt.redistribute(BH.Square, BH.Root);
+  global_sum = 0;
+  local_sum = MatrixOperations::vector_sum(CZt.store);
+  MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  if (root) std::cout << "REDUCE : " << global_sum << " " << CZt.ncols << std::endl;
+  local_sum = MatrixOperations::vector_sum(CCt.store);
+  global_sum = 0;
+  MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  if (root) std::cout << "REDUCE : " << global_sum << " " << CCt.nrows << std::endl;
+  DistributedMatrix::Matrix C(CCt.nrows, CZt.ncols, BH.Square);
+  for (int i = 0; i < C.desc.size(); i++) {
+    if (root) std::cout << CCt.desc[i] << " " << CZt.desc[i] << " " << C.desc[i] << std::endl;
+  }
+  //std::cout << "CMAT: " << C.nrows << " " << C.ncols << " " << C.local_nrows << " " << C.local_ncols << " " << CZt.nrows << " " << C.store.size() << std::endl;
+  MatrixOperations::product(CCt, CZt, C);
+  C.redistribute(BH.Square, BH.Root);
+  if (root) std::cout << "MM: " << MatrixOperations::vector_sum(C.store) << std::endl;
   //MatrixOperations::least_squares(CCt, CZt);
-  //CZt.gather_block_cyclic(ctxt);
+  //CZt.redistribute(BH.Square, BH.Root);
   //tlsq = clock() - tlsq;
   //if (root) {
     //std::cout << "Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
-    //std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.global_data) << std::endl;
-    //H5Helper::write_interpolating_points(CZt.global_data, CZt.nrows, CZt.ncols);
+    //std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.store) << std::endl;
+    //H5Helper::write_interpolating_points(CZt.store, CZt.nrows, CZt.ncols);
   //}
   //DistributedMatrix::Matrix CZ(CZt.ncols, CZt.nrows, block_rows, block_cols, ctxt, root_ctxt, ccyc_ctxt);
   //MatrixOperations::transpose(CZt, CZ);

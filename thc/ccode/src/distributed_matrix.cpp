@@ -27,6 +27,7 @@ namespace DistributedMatrix
     desc.resize(9);
     initialise_discriptor(desc, Grid, local_nrows, local_ncols);
     // Allocate memory.
+    std::cout << local_nrows << " " << local_ncols << std::endl;
     store.resize(local_nrows*local_ncols);
   }
 
@@ -84,6 +85,9 @@ namespace DistributedMatrix
                          &izero, &Grid.nrows);
       local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
                          &Grid.ncols);
+      if (Grid.rank == 0) {
+        std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+      }
       lld = std::max(1, local_nr);
       descinit_(desc.data(), &nrows, &ncols, &block_nrows,
                 &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
