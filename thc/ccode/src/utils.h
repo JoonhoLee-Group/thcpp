@@ -14,8 +14,8 @@ inline std::vector<std::complex< double> > convert_double_to_complex(double *dat
   std::vector<std::complex<double> > cdata(size);
   double *d = data;
   for (int i = 0; i < cdata.size(); i++) {
-    cdata[i].real() = *d;
-    cdata[i].imag() = 0.0;
+    cdata[i].real(*d);
+    cdata[i].imag(0.0);
     d++;
   }
   return cdata;
