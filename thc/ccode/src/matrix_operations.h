@@ -2,6 +2,7 @@
 #define MATRIX_OPERATIONS_H
 #include <iostream>
 #include <vector>
+#include <cmath>
 #include "lapack_defs.h"
 #include "scalapack_defs.h"
 #include "distributed_matrix.h"
@@ -17,6 +18,15 @@ T vector_sum(std::vector<T> vec)
     sum += vec[i];
   }
   return sum;
+}
+
+inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
+{
+  double diff = 0.0;
+  for (int i = 0; i < a.size(); i++) {
+    diff += a[i] - b[i];
+  }
+  std::abs(diff);
 }
 
 template <typename T>
