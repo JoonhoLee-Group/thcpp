@@ -71,6 +71,8 @@ namespace DistributedMatrix
     if (Grid.nprocs == 1) {
       Cblacs_gridinfo(Grid.ctxt, &Grid.nrows, &Grid.ncols, &Grid.row, &Grid.col);
       if (Grid.row == 0 && Grid.col == 0) {
+        local_nr = nrows;
+        local_nc = ncols;
         descinit_(desc.data(), &nrows, &ncols, &nrows,
                   &ncols, &irsrc, &icsrc, &Grid.ctxt, &nrows,
                   &info);
