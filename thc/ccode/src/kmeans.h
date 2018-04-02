@@ -14,7 +14,7 @@ namespace InterpKMeans
     public:
       KMeans(std::string filename, int max_it, int thresh, int cfac);
       ~KMeans();
-      std::vector<int> kernel(ContextHandler::BlacsHandler &BH);
+      void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix &aoR_mu);
     private:
       void classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids,
                                 std::vector<int> &grid_map, bool resize_deltas=false);

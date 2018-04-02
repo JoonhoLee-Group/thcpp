@@ -79,7 +79,7 @@ namespace InterpKMeans
     }
   }
 
-  std::vector<int> KMeans::kernel(ContextHandler::BlacsHandler &BH)
+  void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix &aoR_mu)
   {
     // real space supercell atomic orbitals.
     DistributedMatrix::Matrix aoR(filename, "aoR", BH.Root);
@@ -93,6 +93,7 @@ namespace InterpKMeans
     weights.resize(num_interp_pts);
     std::vector<double> current_centroids(num_interp_pts), new_centroids(num_interp_pts);
     std::vector<int> grid_map(num_grid_pts);
+    interp_indxs.resize(num_interp_pts);
     guess_initial_centroids(grid.store, current_centroids);
 
     double diff;
@@ -101,11 +102,12 @@ namespace InterpKMeans
       update_centroids(density.store, grid.store, new_centroids, grid_map);
       diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
       if (diff < threshold) {
-        return map_to_grid(grid.store, new_centroids);
+        interp_indxs = map_to_grid(grid.store, new_centroids);
       } else {
         std::copy(new_centroids.begin(), new_centroids.end(), current_centroids.begin());
       }
     }
     std::cout << "Threshold not breached: " << diff << std::endl;
   }
+  KMeans::~KMeans() {}
 }
