@@ -23,8 +23,8 @@ int main(int argc, char* argv[])
   // Initialise blacs context.
   ContextHandler::BlacsHandler BH;
   int t1, t2, t3, t4;
-  DistributedMatrix::Matrix CZt("thc_data.h5", "CZt", BH.Root, rank);
-  DistributedMatrix::Matrix CCt("thc_data.h5", "CCt", BH.Root, rank);
+  DistributedMatrix::Matrix CZt("thc_data.h5", "CZt", BH.Root, false);
+  DistributedMatrix::Matrix CCt("thc_data.h5", "CCt", BH.Root, false);
   if (root) {
     std::cout << "SUm: " << MatrixOperations::vector_sum(CZt.store) << " " << MatrixOperations::vector_sum(CCt.store) << " " << std::endl;
   }
