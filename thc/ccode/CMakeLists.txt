@@ -4,6 +4,7 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+set(CMAKE_CXX_STANDARD 11)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
@@ -11,7 +12,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 include_directories("${PROJECT_SOURCE_DIR}")
 
 add_executable(lstsq.x src/h5helper.cpp src/context_handler.cpp
-               src/distributed_matrix.cpp src/main.cpp)
+               src/distributed_matrix.cpp src/kmeans.cpp src/main.cpp)
 
 find_package(HDF5 COMPONENTS CXX)
 find_package(FFTW)
