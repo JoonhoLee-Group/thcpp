@@ -23,8 +23,6 @@ int main(int argc, char* argv[])
   // Initialise blacs context.
   ContextHandler::BlacsHandler BH;
   int t1, t2, t3, t4;
-  Cblacs_gridinfo(BH.Root.ctxt, &t1, &t2, &t3, &t4);
-  Cblacs_gridinfo(BH.Square.ctxt, &t1, &t2, &t3, &t4);
   DistributedMatrix::Matrix CZt("thc_data.h5", "CZt", BH.Root, rank);
   DistributedMatrix::Matrix CCt("thc_data.h5", "CCt", BH.Root, rank);
   if (root) {
@@ -50,22 +48,25 @@ int main(int argc, char* argv[])
   global_sum = 0;
   MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   if (root) std::cout << "REDUCE : " << global_sum << " " << CCt.nrows << std::endl;
+  //DistributedMatrix::Matrix C("thc_data.h5", "CZt", BH.Root, rank);
+  //C.redistribute(BH.Root, BH.Square);
   DistributedMatrix::Matrix C(CCt.nrows, CZt.ncols, BH.Square);
   for (int i = 0; i < C.desc.size(); i++) {
     if (root) std::cout << CCt.desc[i] << " " << CZt.desc[i] << " " << C.desc[i] << std::endl;
   }
-  //std::cout << "CMAT: " << C.nrows << " " << C.ncols << " " << C.local_nrows << " " << C.local_ncols << " " << CZt.nrows << " " << C.store.size() << std::endl;
+  if (root) std::cout << CCt.store.size() << " " << CZt.store.size() << " " << C.store.size() << std::endl;
+  std::cout << "CMAT: " << C.nrows << " " << C.ncols << " " << C.local_nrows << " " << C.local_ncols << " " << CZt.nrows << " " << C.store.size() << std::endl;
   MatrixOperations::product(CCt, CZt, C);
   C.redistribute(BH.Square, BH.Root);
-  if (root) std::cout << "MM: " << MatrixOperations::vector_sum(C.store) << std::endl;
-  //MatrixOperations::least_squares(CCt, CZt);
-  //CZt.redistribute(BH.Square, BH.Root);
-  //tlsq = clock() - tlsq;
-  //if (root) {
-    //std::cout << "Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
-    //std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.store) << std::endl;
-    //H5Helper::write_interpolating_points(CZt.store, CZt.nrows, CZt.ncols);
-  //}
+  //if (root) std::cout << "MM: " << MatrixOperations::vector_sum(C.store) << std::endl;
+  MatrixOperations::least_squares(CCt, CZt);
+  CZt.redistribute(BH.Square, BH.Root);
+  tlsq = clock() - tlsq;
+  if (root) {
+    std::cout << "Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
+    std::cout << "SUM: " << MatrixOperations::vector_sum(CZt.store) << std::endl;
+    H5Helper::write_interpolating_points(CZt.store, CZt.nrows, CZt.ncols);
+  }
   //DistributedMatrix::Matrix CZ(CZt.ncols, CZt.nrows, block_rows, block_cols, ctxt, root_ctxt, ccyc_ctxt);
   //MatrixOperations::transpose(CZt, CZ);
   //// will now have matrix in C order (nmu/nprocs, ngs)
