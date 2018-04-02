@@ -32,10 +32,10 @@ namespace DistributedMatrix
   }
 
   Matrix::Matrix(std::string filename, std::string name,
-                 ContextHandler::BlacsGrid &Grid, int rank)
+                 ContextHandler::BlacsGrid &Grid, bool row_major)
   {
     std::vector<hsize_t> dims(2);
-    if (rank == 0) {
+    if (Grid.rank == 0) {
       std::cout << "Reading " << name << " matrix." << std::endl;
       double tread = clock();
       H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
@@ -45,15 +45,28 @@ namespace DistributedMatrix
       std::cout << "Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;
       double memory = UTILS::get_memory(store);
       std::cout << "Memory usage for " << name << ": " << memory << " GB" << std::endl;
-      std::cout << "Assuming matrices are in FORTRAN / column major format." << std::endl;
-      std::cout << "Matrix shape: (" << dims[1] << ", " << dims[0] << ")" << std::endl;
       file.close();
     }
     MPI_Bcast(dims.data(), 2, MPI::UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
-    // Matrices have been transposed to Fortran ordering before reading from hdf5 so need
-    // to swap dimensions for rows and columns.
-    nrows = dims[1];
-    ncols = dims[0];
+    if (row_major) {
+      // Matrices are in native C order.
+      nrows = dims[0];
+      ncols = dims[1];
+      if (Grid.rank == 0) {
+        std::cout << "Assuming matrices are in C / row major format." << std::endl;
+      }
+    } else {
+      // Matrices have been transposed to Fortran ordering before reading from hdf5 so need
+      // to swap dimensions for rows and columns.
+      if (Grid.rank == 0) {
+        std::cout << "Assuming matrices are in FORTRAN / column major format." << std::endl;
+      }
+      nrows = dims[1];
+      ncols = dims[0];
+    }
+    if (Grid.rank == 0) {
+      std::cout << "Matrix shape: (" << nrows << ", " << ncols << ")" << std::endl;
+    }
     // Hardcoded.
     block_nrows = 64;
     block_ncols = 64;
