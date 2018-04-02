@@ -11,6 +11,18 @@
 
 namespace DistributedMatrix
 {
+  Matrix::Matrix()
+  {
+    // Hardcoded for now.
+    block_nrows = 64;
+    block_ncols = 64;
+    // Offsets.
+    izero = 0;
+    init_row_idx = 1; // fortran indexing.
+    init_col_idx = 1;
+    // Setup descriptor arrays for block cyclic distribution.
+    desc.resize(9);
+  }
   // Constructor without having data.
   Matrix::Matrix(int m, int n, ContextHandler::BlacsGrid &Grid)
   {
@@ -134,6 +146,14 @@ namespace DistributedMatrix
       std::cout << "Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
     }
 #endif
+  }
+  void Matrix::setup_matrix(int m, int n, ContextHandler::BlacsGrid &Grid)
+  {
+    nrows = m;
+    ncols = n;
+    initialise_discriptor(desc, Grid, local_nrows, local_ncols);
+    // Allocate memory.
+    store.resize(local_nrows*local_ncols);
   }
   // Destructor.
   // Will need to deal with releasing memory.

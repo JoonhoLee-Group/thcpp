@@ -13,6 +13,7 @@ namespace DistributedMatrix
   class Matrix
   {
     public:
+      Matrix();
       Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid);
       Matrix(std::string filename, std::string name,
              ContextHandler::BlacsGrid &Grid, bool row_major=true);
@@ -24,6 +25,7 @@ namespace DistributedMatrix
       void redistribute_to_column_cyclic(int ctxt);
       void initialise_discriptors(int ctxt, int root_ctxt, int ccyc_ctxt);
       void initialise_discriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc);
+      void setup_matrix(int m, int c, ContextHandler::BlacsGrid &Grid);
       // global matrix dimensions
       int nrows;
       int ncols;
