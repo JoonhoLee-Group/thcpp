@@ -177,7 +177,7 @@ def dump_aos(supercell, rotation_matrix, filename='supercell_atomic_orbitals.h5'
         fh5.create_dataset('aoR', data=aoR)
         fh5.create_dataset('ortho_aoR', data=aoR.dot(rotation_matrix))
         fh5.create_dataset('aoR_orthogonalising_matrix', data=rotation_matrix)
-        fh5.create_dataset('denisty', data=density)
+        fh5.create_dataset('denisty', data=rho)
 
 def dump_thc_data(scf_dump, wfn_file='wfn.dat', ao_file='supercell_atomic_orbitals.h5'):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
