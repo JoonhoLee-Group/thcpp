@@ -169,15 +169,16 @@ def dump_aos(supercell, rotation_matrix, filename='supercell_atomic_orbitals.h5'
     grid = gen_grid.gen_uniform_grids(supercell)
     aoR = numint.eval_ao(supercell, grid)
     ngs = grid.shape[0]
-    rho = numpy.zeros(grid.shape[0], dtype=numpy.float64)
+    rho = numpy.zeros((grid.shape[0],1))
     for i in range(ngs):
-        rho[i] = numpy.dot(aoR[i].conj(),aoR[i])   # not normalized
+        rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
         fh5.create_dataset('aoR', data=aoR)
+        fh5.create_dataset('density', data=rho)
         fh5.create_dataset('ortho_aoR', data=aoR.dot(rotation_matrix))
         fh5.create_dataset('aoR_orthogonalising_matrix', data=rotation_matrix)
-        fh5.create_dataset('denisty', data=rho)
+        fh5.flush()
 
 def dump_thc_data(scf_dump, wfn_file='wfn.dat', ao_file='supercell_atomic_orbitals.h5'):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
