@@ -117,6 +117,51 @@ inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::M
   //int info;
   //info = LAPACKE_dgels(LAPACK_ROW_MAJOR, 'N', nrow, ncol, nrhs, A.data(), ncol, B.data(), nrhs);
 //}
+//
+
+inline void redistribute(int m, int n,
+                         double *a, int ia, int ja, int *desca,
+                         double *b, int ib, int jb, int *descb,
+                         int ictxt)
+{
+    pdgemr2d_(&m, &n, a, &ia, &ib, desca, b, &ia, &ib, descb, &ictxt);
+}
+
+inline void redistribute(int m, int n,
+                         std::complex<double> *a, int ia, int ja, int *desca,
+                         std::complex<double> *b, int ib, int jb, int *descb,
+                         int ictxt)
+{
+    pzgemr2d_(&m, &n, a, &ia, &ib, desca, b, &ia, &ib, descb, &ictxt);
+}
+
+template <typename T>
+inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB, bool verbose=false)
+{
+  // setup descriptor for Blacs grid we'll distribute to.
+  std::vector<int> descb(9);
+  M.initialise_descriptor(descb, GridB, M.local_nrows, M.local_ncols);
+  std::vector<T> tmp(M.local_nrows*M.local_ncols);
+  int ctxt;
+  // ctxt for p?gemr2d call must at least contain the union of processors from gridA and
+  // gridB.
+  if (GridA.nrows*GridA.ncols >= GridB.nrows*GridB.ncols) {
+    ctxt = GridA.ctxt;
+  } else {
+    ctxt = GridB.ctxt;
+  }
+  redistribute(M.nrows, M.ncols,
+               M.store.data(), M.init_row_idx, M.init_col_idx, M.desc.data(),
+               tmp.data(), M.init_row_idx, M.init_col_idx, descb.data(),
+               ctxt);
+  tmp.swap(M.store);
+  descb.swap(M.desc);
+  if (GridB.rank == 0 && verbose) {
+    double memory = UTILS::get_memory(M.store);
+    std::cout << "  * Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
+    std::cout << "  * Local shape (on root processor) following redistribution: (" << M.local_nrows << ", " << M.local_ncols << ")" << std::endl;
+  }
+}
 
 }
 #endif
