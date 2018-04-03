@@ -121,13 +121,12 @@ namespace DistributedMatrix
                 &info);
     }
   }
-  void Matrix::redistribute(ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB)
+  void Matrix::redistribute(ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB, bool verbose)
   {
     // setup discriptor for Blacs grid we'll distribute to.
     std::vector<int> descb(9);
-    int nr, nc;
-    initialise_discriptor(descb, GridB, nr, nc);
-    std::vector<double> tmp(nr*nc);
+    initialise_discriptor(descb, GridB, local_nrows, local_ncols);
+    std::vector<double> tmp(local_nrows*local_ncols);
     int ctxt;
     // ctxt for p?gemr2d call must at least contain the union of processors from gridA and
     // gridB.
