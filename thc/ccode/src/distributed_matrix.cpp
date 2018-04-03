@@ -39,7 +39,6 @@ namespace DistributedMatrix
     desc.resize(9);
     initialise_discriptor(desc, Grid, local_nrows, local_ncols);
     // Allocate memory.
-    std::cout << local_nrows << " " << local_ncols << std::endl;
     store.resize(local_nrows*local_ncols);
   }
 
@@ -48,6 +47,7 @@ namespace DistributedMatrix
   {
     std::vector<hsize_t> dims(2);
     if (Grid.rank == 0) {
+      std::cout << "#################################################" << std::endl;
       std::cout << "Reading " << name << " matrix." << std::endl;
       double tread = clock();
       H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
@@ -78,6 +78,8 @@ namespace DistributedMatrix
     }
     if (Grid.rank == 0) {
       std::cout << "Matrix shape: (" << nrows << ", " << ncols << ")" << std::endl;
+      std::cout << "#################################################" << std::endl;
+      std::cout << std::endl;
     }
     // Hardcoded.
     block_nrows = 64;
@@ -110,9 +112,9 @@ namespace DistributedMatrix
                          &izero, &Grid.nrows);
       local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
                          &Grid.ncols);
-      if (Grid.rank == 0) {
-        std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
-      }
+      //if (Grid.rank == 0) {
+        //std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+      //}
       lld = std::max(1, local_nr);
       descinit_(desc.data(), &nrows, &ncols, &block_nrows,
                 &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
@@ -143,7 +145,9 @@ namespace DistributedMatrix
 #ifndef NDEBUG
     if (GridB.rank == 0) {
       double memory = UTILS::get_memory(store);
+      std::cout << "#################################################" << std::endl;
       std::cout << "Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
+      std::cout << "#################################################" << std::endl;
     }
 #endif
   }

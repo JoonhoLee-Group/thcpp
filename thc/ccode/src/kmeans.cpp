@@ -65,9 +65,6 @@ namespace InterpKMeans
     classify_grid_points(centroids, grid, interp_idxs, true);
     std::sort(interp_idxs.begin(), interp_idxs.end());
     for (int i = 0; i < interp_idxs.size()-1; i++) {
-      std::cout << i << " " << interp_idxs[i] << " " << interp_idxs[i+1] << std::endl;
-    }
-    for (int i = 0; i < interp_idxs.size()-1; i++) {
       if (interp_idxs[i] == interp_idxs[i+1]) {
         std::cout << "ERROR: Found repeated indices." << std::endl;
       }
@@ -112,14 +109,17 @@ namespace InterpKMeans
 
     double diff;
     if (root) {
-      std::cout << num_interp_pts << " " << num_grid_pts << std::endl;
+      std::cout << "#################################################" << std::endl;
+      std::cout << "## Finding interpolation points using K-Means. ##" << std::endl;
+      std::cout << "#################################################" << std::endl;
+      std::cout << std::endl;
       guess_initial_centroids(grid.store, current_centroids);
       for (int i = 0; i < max_it; i++) {
         classify_grid_points(grid.store, current_centroids, grid_map);
         update_centroids(density.store, grid.store, new_centroids, grid_map);
         diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
         diff /= num_interp_pts;
-        std::cout << "Step: " << i << " " << diff << " " << threshold << std::endl;
+        std::cout << "Step: " << i << " Error: " << diff << std::endl;
         if (diff < threshold) {
           interp_indxs = map_to_grid(grid.store, new_centroids);
           break;
@@ -129,6 +129,7 @@ namespace InterpKMeans
       }
       if (diff > threshold) std::cout << "Threshold not breached: " << diff << std::endl;
     }
+    std::cout << std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
     aoR_mu.setup_matrix(num_interp_pts, aoR.ncols, BH.Root);
     if (root) {

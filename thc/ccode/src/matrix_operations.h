@@ -88,6 +88,7 @@ inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
   // Actually perform least squares.
   dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
 }
+
 inline void down_sample_rows(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &B, std::vector<int> &row_indices)
 {
     int offset = A.ncols;
