@@ -42,8 +42,8 @@ inline void product(int M, int N, int K, T one,
 }
 
 // distributed matrix product
-inline void product(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &B,
-                    DistributedMatrix::Matrix &C)
+inline void product(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &B,
+                    DistributedMatrix::Matrix<double> &C)
 {
   char transa = 'N', transb = 'N';
   double one = 1.0, zero = 0.0;
@@ -56,7 +56,7 @@ inline void product(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &B,
 }
 
 // distributed matrix least squares solve.
-inline void least_squares(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &B)
+inline void least_squares(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &B)
 {
   char trans = 'N';
   int lwork = -1, info;
@@ -89,7 +89,8 @@ inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
   dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
 }
 
-inline void down_sample(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &B, std::vector<int> &indices, int offset)
+template <typename T>
+inline void down_sample(DistributedMatrix::Matrix<T> &A, DistributedMatrix::Matrix<T> &B, std::vector<int> &indices, int offset)
 {
     for (int i = 0; i < indices.size(); ++i) {
       int ix = indices[i];
@@ -99,7 +100,7 @@ inline void down_sample(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix 
     }
 }
 
-inline void transpose(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &AT)
+inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT)
 {
   char trans = 'T';
   double one = 1.0, zero = 0.0;
