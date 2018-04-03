@@ -24,9 +24,9 @@ inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
 {
   double diff = 0.0;
   for (int i = 0; i < a.size(); i++) {
-    diff += a[i] - b[i];
+    diff += (a[i]-b[i])*(a[i]-b[i]);
   }
-  std::abs(diff);
+  return sqrt(diff);
 }
 
 template <typename T>
