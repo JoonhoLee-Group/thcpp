@@ -8,7 +8,7 @@
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
 
-namespace InterpKMeans
+namespace InterpolatingPoints
 {
   KMeans::KMeans(std::string input_data, int max_iteration, double thresh, int cfac)
   {
@@ -90,10 +90,13 @@ namespace InterpKMeans
     }
   }
 
-  void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix &aoR_mu)
+  void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix &aoR)
   {
     // real space supercell atomic orbitals.
-    DistributedMatrix::Matrix aoR(filename, "aoR", BH.Root);
+    DistributedMatrix::Matrix aoR_tmp(filename, "aoR", BH.Root);
+    aoR = aoR_tmp;
+    // Free up memory.
+    aoR_tmp.store.clear();
     // real space grid.
     DistributedMatrix::Matrix grid(filename, "real_space_grid", BH.Root);
     // "electron density" from supercell atomic orbitals.
@@ -119,7 +122,7 @@ namespace InterpKMeans
         update_centroids(density.store, grid.store, new_centroids, grid_map);
         diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
         diff /= num_interp_pts;
-        std::cout << "Step: " << i << " Error: " << diff << std::endl;
+        std::cout << " * Step: " << i << " Error: " << diff << std::endl;
         if (diff < threshold) {
           interp_indxs = map_to_grid(grid.store, new_centroids);
           break;
@@ -127,14 +130,10 @@ namespace InterpKMeans
           new_centroids.swap(current_centroids);
         }
       }
-      if (diff > threshold) std::cout << "Threshold not breached: " << diff << std::endl;
+      if (diff > threshold) std::cout << " * Threshold not breached: " << diff << std::endl;
     }
-    std::cout << std::endl;
+    if (root) std::cout << std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
-    aoR_mu.setup_matrix(num_interp_pts, aoR.ncols, BH.Root);
-    if (root) {
-      MatrixOperations::down_sample_rows(aoR, aoR_mu, interp_indxs);
-    }
   }
   KMeans::~KMeans()
   {
