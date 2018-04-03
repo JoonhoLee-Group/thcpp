@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <random>
+#include <time.h>
 #include <mpi.h>
 #include "kmeans.h"
 #include "distributed_matrix.h"
@@ -110,7 +111,7 @@ namespace InterpolatingPoints
     interp_indxs.resize(num_interp_pts);
     bool root = BH.Root.rank == 0;
 
-    double diff;
+    double diff, t_kmeans = clock();
     if (root) {
       std::cout << "#################################################" << std::endl;
       std::cout << "## Finding interpolation points using K-Means. ##" << std::endl;
@@ -132,7 +133,11 @@ namespace InterpolatingPoints
       }
       if (diff > threshold) std::cout << " * Threshold not breached: " << diff << std::endl;
     }
-    if (root) std::cout << std::endl;
+    if (root) {
+      t_kmeans = clock() - t_kmeans;
+      std::cout << " * Time taken for KMeans solution: " << t_kmeans / CLOCKS_PER_SEC << " seconds" << std::endl;
+      std::cout << std::endl;
+    }
     MPI_Barrier(MPI_COMM_WORLD);
   }
   KMeans::~KMeans()
