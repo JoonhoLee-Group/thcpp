@@ -112,7 +112,6 @@ namespace InterpKMeans
 
     double diff;
     if (root) {
-      std::cout << "initialised: " << max_it << std::endl;
       std::cout << num_interp_pts << " " << num_grid_pts << std::endl;
       guess_initial_centroids(grid.store, current_centroids);
       for (int i = 0; i < max_it; i++) {
@@ -122,7 +121,6 @@ namespace InterpKMeans
         diff /= num_interp_pts;
         std::cout << "Step: " << i << " " << diff << " " << threshold << std::endl;
         if (diff < threshold) {
-          std::cout << "Success: " << i << " " << diff << std::endl;
           interp_indxs = map_to_grid(grid.store, new_centroids);
           break;
         } else {
@@ -132,18 +130,10 @@ namespace InterpKMeans
       if (diff > threshold) std::cout << "Threshold not breached: " << diff << std::endl;
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    //std::cout << "SETUP: " << num_interp_pts << " " << aoR.ncols << std::endl;
-    //aoR_mu.setup_matrix(num_interp_pts, aoR.ncols, BH.Root);
-    //std::cout << "DONE SETUP: " << aoR_mu.store.size() << std::endl;
-    //if (root) {
-      //int offset = aoR.ncols;
-      //for (int i = 0; i < interp_indxs.size(); i++) {
-        //int ix = interp_indxs[i];
-        //std::copy(aoR.store.begin()+ix*offset,
-                  //aoR.store.begin()+(ix+1)*offset,
-                  //aoR_mu.store.begin()+i*offset);
-      //}
-    //}
+    aoR_mu.setup_matrix(num_interp_pts, aoR.ncols, BH.Root);
+    if (root) {
+      MatrixOperations::down_sample_rows(aoR, aoR_mu, interp_indxs);
+    }
   }
   KMeans::~KMeans()
   {
