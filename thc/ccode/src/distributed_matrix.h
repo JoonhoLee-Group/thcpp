@@ -22,7 +22,7 @@ namespace DistributedMatrix
       void gather_block_cyclic(int ctxt);
       void gather_fft(int ctxt);
       void scatter_block_cyclic(int ctxt);
-      void redistribute(ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB);
+      void redistribute(ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB, bool verbose=false);
       void redistribute_to_column_cyclic(int ctxt);
       void initialise_discriptors(int ctxt, int root_ctxt, int ccyc_ctxt);
       void initialise_discriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc);

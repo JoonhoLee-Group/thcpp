@@ -141,14 +141,11 @@ namespace DistributedMatrix
               &ctxt);
     tmp.swap(store);
     descb.swap(desc);
-#ifndef NDEBUG
-    if (GridB.rank == 0) {
+    if (GridB.rank == 0 && verbose) {
       double memory = UTILS::get_memory(store);
-      std::cout << "#################################################" << std::endl;
-      std::cout << " * Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
-      std::cout << "#################################################" << std::endl;
+      std::cout << "  * Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
+      std::cout << "  * Local shape (on root processor) following redistribution: (" << local_nrows << " " << local_ncols << ")" << " GB" << std::endl;
     }
-#endif
   }
   void Matrix::setup_matrix(int m, int n, ContextHandler::BlacsGrid &Grid)
   {
