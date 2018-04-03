@@ -88,6 +88,16 @@ inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
   // Actually perform least squares.
   dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
 }
+inline void down_sample_rows(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &B, std::vector<int> &row_indices)
+{
+    int offset = A.ncols;
+    for (int i = 0; i < row_indices.size(); i++) {
+      int ix = row_indices[i];
+      std::copy(A.store.begin()+ix*offset,
+                A.store.begin()+(ix+1)*offset,
+                B.store.begin()+i*offset);
+    }
+}
 
 inline void transpose(DistributedMatrix::Matrix &A, DistributedMatrix::Matrix &AT)
 {
