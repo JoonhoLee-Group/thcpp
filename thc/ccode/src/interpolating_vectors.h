@@ -13,7 +13,7 @@ namespace InterpolatingVectors
       IVecs(std::string file, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR);
       void kernel(ContextHandler::BlacsHandler &BH);
     private:
-      void fft_interp_vecs(ContextHandler::BlacsHandler &BH);
+      void fft_vectors(ContextHandler::BlacsHandler &BH);
       void determine_interp_vecs(ContextHandler::BlacsHandler &BH);
       void dump_data(std::string filename);
       DistributedMatrix::Matrix<double> CCt, CZt;
