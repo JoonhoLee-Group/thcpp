@@ -11,7 +11,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 
 include_directories("${PROJECT_SOURCE_DIR}")
 
-add_executable(lstsq.x src/h5helper.cpp src/context_handler.cpp
+add_executable(thcpp.x src/h5helper.cpp src/context_handler.cpp
                src/distributed_matrix.cpp src/kmeans.cpp src/main.cpp)
 
 find_package(HDF5 COMPONENTS CXX)
@@ -25,4 +25,4 @@ include(math_libs)
 if (MPI_FOUND)
     include_directories(${MPI_INCLUDE_DIRS})
 endif (MPI_FOUND)
-target_link_libraries(lstsq.x ${HDF5_C_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${FFTW_LIBRARIES} ${MATH_LIBS} ${MPI_LIBRARIES})
+target_link_libraries(thcpp.x ${HDF5_C_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${FFTW_LIBRARIES} ${MATH_LIBS} ${MPI_LIBRARIES})
