@@ -12,7 +12,7 @@ namespace InterpKMeans
   class KMeans
   {
     public:
-      KMeans(std::string filename, int max_it, int thresh, int cfac);
+      KMeans(std::string input_data, int max_iteration, double thresh, int cfac);
       ~KMeans();
       void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix &aoR_mu);
     private:
@@ -25,9 +25,10 @@ namespace InterpKMeans
       // Variables
       std::string filename;
       int max_it;
-      int threshold;
+      double threshold;
       int num_interp_pts, num_grid_pts;
       int thc_cfac;
+      int ndim;
       // temporary storage.
       std::vector<double> deltas, weights;
   };
