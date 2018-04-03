@@ -19,7 +19,7 @@ extern "C" {
                  int *ictxt);
   // OK this is really (p)blas.
   // Matrix-Matrix multiplication.
-  void pdgemm_(char * transa, char *transb, int *m, int *n, int *k, 
+  void pdgemm_(char * transa, char *transb, int *m, int *n, int *k,
                double *alpha,
                double *A, int* ia, int *ja, int *desca,
                double *B, int* ib, int *jb, int *descb,
