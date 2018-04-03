@@ -144,7 +144,7 @@ namespace DistributedMatrix
     if (GridB.rank == 0 && verbose) {
       double memory = UTILS::get_memory(store);
       std::cout << "  * Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
-      std::cout << "  * Local shape (on root processor) following redistribution: (" << local_nrows << " " << local_ncols << ")" << " GB" << std::endl;
+      std::cout << "  * Local shape (on root processor) following redistribution: (" << local_nrows << ", " << local_ncols << ")" << std::endl;
     }
   }
   void Matrix::setup_matrix(int m, int n, ContextHandler::BlacsGrid &Grid)
