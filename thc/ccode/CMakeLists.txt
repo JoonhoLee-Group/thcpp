@@ -12,7 +12,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 include_directories("${PROJECT_SOURCE_DIR}")
 
 add_executable(thcpp.x src/h5helper.cpp src/context_handler.cpp
-               src/distributed_matrix.cpp src/kmeans.cpp src/main.cpp)
+               src/distributed_matrix.cpp src/kmeans.cpp
+               src/interpolating_vectors.cpp src/main.cpp)
 
 find_package(HDF5 COMPONENTS CXX)
 find_package(FFTW)
