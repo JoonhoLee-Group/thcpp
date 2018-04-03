@@ -17,6 +17,7 @@ namespace DistributedMatrix
       Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid);
       Matrix(std::string filename, std::string name,
              ContextHandler::BlacsGrid &Grid, bool row_major=true);
+      Matrix(const Matrix& M);
       ~Matrix();
       void gather_block_cyclic(int ctxt);
       void gather_fft(int ctxt);

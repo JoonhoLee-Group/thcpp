@@ -159,6 +159,21 @@ namespace DistributedMatrix
     // Allocate memory.
     store.resize(local_nrows*local_ncols);
   }
+  Matrix::Matrix(const Matrix& M) {
+    nrows = M.nrows;
+    ncols = M.ncols;
+    block_nrows = M.block_ncols;
+    block_ncols = M.block_nrows;
+    local_nrows = M.local_ncols;
+    local_ncols = M.local_nrows;
+    lld = M.lld;
+    izero = M.izero;
+    init_row_idx = M.init_row_idx;
+    init_col_idx = M.init_col_idx;
+    info = M.info;
+    store = M.store;
+    desc = M.desc;
+  }
   // Destructor.
   // Will need to deal with releasing memory.
   Matrix::~Matrix()
