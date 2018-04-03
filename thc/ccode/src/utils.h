@@ -4,9 +4,10 @@
 namespace UTILS
 {
 
-inline double get_memory(std::vector<double> &vec)
+template <typename T>
+inline double get_memory(std::vector<T> &vec)
 {
-  return vec.size() * (double)sizeof(double) / 1000 / 1000 / 1000;
+  return vec.size() * double(sizeof(T)) / 1000 / 1000 / 1000;
 }
 
 inline std::vector<std::complex< double> > convert_double_to_complex(double *data, int size)
