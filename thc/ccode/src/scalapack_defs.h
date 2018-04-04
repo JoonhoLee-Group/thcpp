@@ -25,6 +25,12 @@ extern "C" {
                double *B, int* ib, int *jb, int *descb,
                double *beta,
                double *C, int *ic, int *jc, int *descc);
+  void pzgemm_(char * transa, char *transb, int *m, int *n, int *k,
+               std::complex<double> *alpha,
+               std::complex<double> *A, int* ia, int *ja, int *desca,
+               std::complex<double> *B, int* ib, int *jb, int *descb,
+               std::complex<double> *beta,
+               std::complex<double> *C, int *ic, int *jc, int *descc);
   // Parallel least squares solver.
   void pdgels_(char *trans,
                int *m, int *n, int *nrhs,
@@ -38,5 +44,11 @@ extern "C" {
                 double *A, int *ia, int *ja, int *desca,
                 double *beta,
                 double *C, int *ic, int *jc, int *descc);
+  // Add two matrices.
+  void pzgeadd_(char *trans, int *m, int *n,
+                std::complex<double> *alpha,
+                std::complex<double> *A, int *ia, int *ja, int *desca,
+                std::complex<double> *beta,
+                std::complex<double> *C, int *ic, int *jc, int *descc);
 }
 #endif
