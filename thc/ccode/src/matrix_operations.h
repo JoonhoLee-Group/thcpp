@@ -55,6 +55,19 @@ inline void product(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Mat
           C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
 }
 
+inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B,
+                    DistributedMatrix::Matrix<std::complex<double> > &C)
+{
+  char transa = 'N', transb = 'N';
+  std::complex<double>  one = 1.0, zero = 0.0;
+  pzgemm_(&transa, &transb, &A.nrows, &B.ncols, &A.ncols,
+          &one,
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
+          &zero,
+          C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
+}
+
 // distributed matrix least squares solve.
 inline void least_squares(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &B)
 {
@@ -105,6 +118,17 @@ inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::M
   char trans = 'T';
   double one = 1.0, zero = 0.0;
   pdgeadd_(&trans, &A.ncols, &A.nrows,
+           &one,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           &zero,
+           AT.store.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc.data());
+}
+
+inline void transpose(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &AT)
+{
+  char trans = 'T';
+  std::complex<double> one = 1.0, zero = 0.0;
+  pzgeadd_(&trans, &A.ncols, &A.nrows,
            &one,
            A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
            &zero,
