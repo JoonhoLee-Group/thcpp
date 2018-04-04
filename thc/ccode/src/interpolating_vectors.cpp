@@ -93,19 +93,28 @@ namespace InterpolatingVectors
     // Distribute FFT of coulomb kernel to all processors.
     MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Recall IVGs store is in fortran order so transposed for us.
-    int offset = IVG.local_nrows;
     for (int i = 0; i < IVG.local_ncols; i++) {
-      IVG.store[i*offset] *= sqrt(coulG.store[i]);
+      for (int j = 0; i < IVG.local_nrows; i++) {
+        IVG.store[j+i*IVG.local_nrows] *= sqrt(coulG.store[j]);
+      }
     }
-    //IVG.redistribute();
-    //DistributedMatrix::Matrix<std::complex<double> > IVGT(IVG.n
+    // Redistributed to block cyclic.
+    // magic numbers..
+    MatrixOperations::redistribute(IVG, BH.Column, BH.Square, true, 64, 64);
+    DistributedMatrix::Matrix<std::complex<double> > IVGT(IVG.ncols, IVG.nrows, BH.Square);
+    MatrixOperations::transpose(IVG, IVGT);
+    for (int i = 0; i < IVG.store.size(); i++) {
+      IVG.store[i] = std::conj(IVG.store[i]);
+    }
+    // numpy.dot(IVG, IVG.conj().T)
+    MatrixOperations::product(IVGT, IVG);
   }
 
   void IVecs::fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG)
   {
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
     // parallelism.
-    DistributedMatrix::Matrix<double> CZ(CZt.ncols, CZt.nrows, BH.Square, CZt.ncols, 1);
+    DistributedMatrix::Matrix<double> CZ(CZt.ncols, CZt.nrows, BH.Square);
     MatrixOperations::transpose(CZt, CZ);
     // will now have matrix in C order with local shape (nmu, ngs)
     if (BH.rank == 0) {
@@ -161,7 +170,7 @@ namespace InterpolatingVectors
       std::cout << " * Performing FFT on interpolating vectors." << std::endl;
       std::cout << std::endl;
     }
-    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column);
+    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
     fft_vectors(BH, IVG);
   }
 }
