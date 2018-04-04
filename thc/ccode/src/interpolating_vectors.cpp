@@ -1,18 +1,22 @@
 #include <iostream>
 #include <mpi.h>
 #include <time.h>
+#include <fftw3.h>
+#include <complex>
 #include "interpolating_vectors.h"
 #include "h5helper.h"
 #include "scalapack_defs.h"
 #include "context_handler.h"
 #include "matrix_operations.h"
+#include "utils.h"
 
 namespace InterpolatingVectors
 {
-  IVecs::IVecs(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix &aoR)
+  IVecs::IVecs(std::string file, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR)
   {
+    filename = file;
     // (Nmu, M)
-    DistributedMatrix::Matrix aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
+    DistributedMatrix::Matrix<double> aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
     if (BH.rank == 0) {
       std::cout << "#################################################" << std::endl;
       std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
@@ -30,7 +34,7 @@ namespace InterpolatingVectors
     aoR.nrows = aoR.ncols;
     aoR.ncols = tmp;
     // Done on single processor.
-    aoR.initialise_discriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
+    aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
     // Actually do need to transpose aoR_mu's data.
     if (BH.rank == 0) {
       std::vector<double> tmp(aoR_mu.store.size());
@@ -72,13 +76,64 @@ namespace InterpolatingVectors
     if (BH.rank == 0) {
       std::cout << " * Block cyclic CZt matrix info:" << std::endl;
     }
-    CZt.redistribute(BH.Root, BH.Square, true);
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true);
     if (BH.rank == 0) {
       std::cout << " * Block cyclic CCt matrix info:" << std::endl;
     }
-    CCt.redistribute(BH.Root, BH.Square, true);
+    MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true);
     if (BH.rank == 0) std::cout << std::endl;
   }
+
+  void IVecs::dump_thc_data(std::string outfile, DistributedMatrix::Matrix<std::complex<double> > &IVG, ContextHandler::BlacsHandler &BH)
+  {
+    // Read FFT of coulomb kernel.
+    DistributedMatrix::Matrix<double> coulG(filename, "fft_coulomb", BH.Root);
+    // Resize on other processors.
+    if (coulG.store.size() != coulG.nrows*coulG.ncols) coulG.store.resize(coulG.nrows*coulG.ncols);
+    // Distribute FFT of coulomb kernel to all processors.
+    MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    // Recall IVGs store is in fortran order so transposed for us.
+    int offset = IVG.local_nrows;
+    for (int i = 0; i < IVG.local_ncols; i++) {
+      IVG.store[i*offset] *= sqrt(coulG.store[i]);
+    }
+    //IVG.redistribute();
+    //DistributedMatrix::Matrix<std::complex<double> > IVGT(IVG.n
+  }
+
+  void IVecs::fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG)
+  {
+    // Need to transform interpolating vectors to C order so as to use FFTW and exploit
+    // parallelism.
+    DistributedMatrix::Matrix<double> CZ(CZt.ncols, CZt.nrows, BH.Square, CZt.ncols, 1);
+    MatrixOperations::transpose(CZt, CZ);
+    // will now have matrix in C order with local shape (nmu, ngs)
+    if (BH.rank == 0) {
+      std::cout << " * Column cyclic CZ matrix info:" << std::endl;
+    }
+    // Fortran sees this as a (ngrid, nmu), so we can distributed vectors of length ngrid
+    // cyclically to each processor.
+    MatrixOperations::redistribute(CZ, BH.Square, BH.Column, true, CZ.nrows, 1);
+    // Finally we can FFT interpolating vectors
+    fftw_plan p;
+    int ngs = CZ.nrows;
+    int ng = (int)pow(ngs, 1.0/3.0);
+    int offset = ngs;
+    for (int i = 0; i < CZ.local_ncols; i++) {
+      if (BH.rank == 0) {
+        if (i % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZ.local_ncols << std::endl;
+      }
+      // Data needs to be complex.
+      std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZ.store.data()+i*offset, ngs);
+      // there is a routine for many FFTs run into integer overflow here.
+      p = fftw_plan_dft_3d(ng, ng, ng, reinterpret_cast<fftw_complex*> (complex_data.data()),
+                           reinterpret_cast<fftw_complex*>(IVG.store.data()+i*offset),
+                           FFTW_FORWARD, FFTW_ESTIMATE);
+      fftw_execute(p);
+      fftw_destroy_plan(p);
+    }
+  }
+
   void IVecs::kernel(ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
@@ -90,12 +145,23 @@ namespace InterpolatingVectors
     }
     double tlsq = clock();
     MatrixOperations::least_squares(CCt, CZt);
-    CZt.redistribute(BH.Square, BH.Root);
+    //CZt.redistribute(BH.Square, BH.Root);
     tlsq = clock() - tlsq;
     if (BH.rank == 0) {
       //std::cout << MatrixOperations::vector_sum(CZt.store) << std::endl;
       std::cout << " * Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
     }
+
+    if (BH.rank == 0) {
+      std::cout << "#################################################" << std::endl;
+      std::cout << "##        Constructing Muv matrix.             ##" << std::endl;
+      std::cout << "#################################################" << std::endl;
+      std::cout << std::endl;
+      std::cout << " * Performing FFT on interpolating vectors." << std::endl;
+      std::cout << std::endl;
+    }
+    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column);
+    fft_vectors(BH, IVG);
   }
 }

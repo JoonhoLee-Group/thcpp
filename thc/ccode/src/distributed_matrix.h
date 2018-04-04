@@ -20,6 +20,7 @@ namespace DistributedMatrix
     public:
       Matrix();
       Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid);
+      Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid, int br, int bc);
       Matrix(std::string filename, std::string name,
              ContextHandler::BlacsGrid &Grid, bool row_major=true);
       Matrix(const Matrix& M);
@@ -28,6 +29,7 @@ namespace DistributedMatrix
       void gather_fft(int ctxt);
       void scatter_block_cyclic(int ctxt);
       void initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc);
+      void initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc, int br, int bc);
       void setup_matrix(int m, int c, ContextHandler::BlacsGrid &Grid);
       // global matrix dimensions
       int nrows;
@@ -76,6 +78,26 @@ namespace DistributedMatrix
     // Hardcoded for now.
     block_nrows = 64;
     block_ncols = 64;
+    // Offsets.
+    izero = 0;
+    init_row_idx = 1; // fortran indexing.
+    init_col_idx = 1;
+    // Setup descriptor arrays for block cyclic distribution.
+    desc.resize(9);
+    initialise_descriptor(desc, Grid, local_nrows, local_ncols);
+    // Allocate memory.
+    store.resize(local_nrows*local_ncols);
+  }
+
+  // Constructor without having data, specifying block size.
+  template <class T>
+  Matrix<T>::Matrix(int m, int n, ContextHandler::BlacsGrid &Grid, int br, int bc)
+  {
+    nrows = m;
+    ncols = n;
+    // Hardcoded for now.
+    block_nrows = br;
+    block_ncols = bc;
     // Offsets.
     izero = 0;
     init_row_idx = 1; // fortran indexing.
@@ -145,6 +167,38 @@ namespace DistributedMatrix
   void Matrix<T>::initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &local_nr, int &local_nc)
   {
     int irsrc = 0, icsrc = 0;
+    // 1x1 grid.
+    if (Grid.nprocs == 1) {
+      Cblacs_gridinfo(Grid.ctxt, &Grid.nrows, &Grid.ncols, &Grid.row, &Grid.col);
+      if (Grid.row == 0 && Grid.col == 0) {
+        local_nr = nrows;
+        local_nc = ncols;
+        descinit_(desc.data(), &nrows, &ncols, &nrows,
+                  &ncols, &irsrc, &icsrc, &Grid.ctxt, &nrows,
+                  &info);
+      } else {
+        desc[1] = -1;
+      }
+    } else {
+      local_nr = numroc_(&nrows, &block_nrows, &Grid.row,
+                         &izero, &Grid.nrows);
+      local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
+                         &Grid.ncols);
+      //if (Grid.rank == 0) {
+        //std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+      //}
+      lld = std::max(1, local_nr);
+      descinit_(desc.data(), &nrows, &ncols, &block_nrows,
+                &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
+                &info);
+    }
+  }
+  template <class T>
+  void Matrix<T>::initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &local_nr, int &local_nc, int br, int bc)
+  {
+    int irsrc = 0, icsrc = 0;
+    block_nrows = br;
+    block_ncols = bc;
     // 1x1 grid.
     if (Grid.nprocs == 1) {
       Cblacs_gridinfo(Grid.ctxt, &Grid.nrows, &Grid.ncols, &Grid.row, &Grid.col);

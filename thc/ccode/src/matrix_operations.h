@@ -136,11 +136,15 @@ inline void redistribute(int m, int n,
 }
 
 template <typename T>
-inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB, bool verbose=false)
+inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB, bool verbose=false, int block_rows=-1, int block_cols=-1)
 {
   // setup descriptor for Blacs grid we'll distribute to.
   std::vector<int> descb(9);
-  M.initialise_descriptor(descb, GridB, M.local_nrows, M.local_ncols);
+  if (block_rows > 0 and block_cols > 0) {
+    M.initialise_descriptor(descb, GridB, M.local_nrows, M.local_ncols, block_rows, block_cols);
+  } else {
+    M.initialise_descriptor(descb, GridB, M.local_nrows, M.local_ncols);
+  }
   std::vector<T> tmp(M.local_nrows*M.local_ncols);
   int ctxt;
   // ctxt for p?gemr2d call must at least contain the union of processors from gridA and

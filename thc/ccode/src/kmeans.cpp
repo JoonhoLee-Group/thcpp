@@ -135,7 +135,7 @@ namespace InterpolatingPoints
     }
     if (root) {
       t_kmeans = clock() - t_kmeans;
-      std::cout << " * Time taken for KMeans solution: " << t_kmeans / CLOCKS_PER_SEC << " seconds" << std::endl;
+      std::cout << " * Time taken for K-Means solution: " << t_kmeans / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
     }
     MPI_Barrier(MPI_COMM_WORLD);
