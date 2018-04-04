@@ -31,6 +31,7 @@ namespace DistributedMatrix
       void initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc);
       void initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc, int br, int bc);
       void setup_matrix(int m, int c, ContextHandler::BlacsGrid &Grid);
+      void dump_data(H5::H5File &fh5, std::string group_name, std::string dataset_name);
       // global matrix dimensions
       int nrows;
       int ncols;
@@ -251,6 +252,23 @@ namespace DistributedMatrix
     info = M.info;
     store = M.store;
     desc = M.desc;
+  }
+
+  template <class T>
+  void Matrix<T>::dump_data(H5::H5File &fh5, std::string group_name, std::string dataset_name)
+  {
+    H5::Exception::dontPrint();
+    try {
+      H5::Group group = fh5.openGroup(group_name.c_str());
+    } catch (...) {
+      H5::Group group = fh5.createGroup(group_name.c_str());
+    }
+    H5::Group group = fh5.openGroup(group_name.c_str());
+    std::vector<hsize_t> dims(2);
+    dims[0] = nrows;
+    dims[1] = ncols;
+    std::string dset_name = group_name + "/" + dataset_name;
+    H5Helper::write(fh5, dset_name, store, dims);
   }
 
   // Destructor.
