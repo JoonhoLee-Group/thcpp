@@ -28,8 +28,8 @@ namespace DistributedMatrix
       void gather_block_cyclic(int ctxt);
       void gather_fft(int ctxt);
       void scatter_block_cyclic(int ctxt);
-      void initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc);
-      void initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &nr, int &nc, int br, int bc);
+      void initialise_descriptor(std::vector<int> &descriptor, ContextHandler::BlacsGrid &Grid, int &nr, int &nc);
+      void initialise_descriptor(std::vector<int> &descriptor, ContextHandler::BlacsGrid &Grid, int &nr, int &nc, int br, int bc);
       void setup_matrix(int m, int c, ContextHandler::BlacsGrid &Grid);
       void dump_data(H5::H5File &fh5, std::string group_name, std::string dataset_name);
       // global matrix dimensions
@@ -165,7 +165,7 @@ namespace DistributedMatrix
 
   // setup desc for given blacs context arrays.
   template <class T>
-  void Matrix<T>::initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &local_nr, int &local_nc)
+  void Matrix<T>::initialise_descriptor(std::vector<int> &descriptor, ContextHandler::BlacsGrid &Grid, int &local_nr, int &local_nc)
   {
     int irsrc = 0, icsrc = 0;
     // 1x1 grid.
@@ -174,28 +174,28 @@ namespace DistributedMatrix
       if (Grid.row == 0 && Grid.col == 0) {
         local_nr = nrows;
         local_nc = ncols;
-        descinit_(desc.data(), &nrows, &ncols, &nrows,
+        descinit_(descriptor.data(), &nrows, &ncols, &nrows,
                   &ncols, &irsrc, &icsrc, &Grid.ctxt, &nrows,
                   &info);
       } else {
-        desc[1] = -1;
+        descriptor[1] = -1;
       }
     } else {
       local_nr = numroc_(&nrows, &block_nrows, &Grid.row,
                          &izero, &Grid.nrows);
       local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
                          &Grid.ncols);
-      //if (Grid.rank == 0) {
-        //std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
-      //}
+      if (Grid.rank == 0) {
+        std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+      }
       lld = std::max(1, local_nr);
-      descinit_(desc.data(), &nrows, &ncols, &block_nrows,
+      descinit_(descriptor.data(), &nrows, &ncols, &block_nrows,
                 &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
                 &info);
     }
   }
   template <class T>
-  void Matrix<T>::initialise_descriptor(std::vector<int> &desc, ContextHandler::BlacsGrid &Grid, int &local_nr, int &local_nc, int br, int bc)
+  void Matrix<T>::initialise_descriptor(std::vector<int> &descriptor, ContextHandler::BlacsGrid &Grid, int &local_nr, int &local_nc, int br, int bc)
   {
     int irsrc = 0, icsrc = 0;
     block_nrows = br;
@@ -206,24 +206,30 @@ namespace DistributedMatrix
       if (Grid.row == 0 && Grid.col == 0) {
         local_nr = nrows;
         local_nc = ncols;
-        descinit_(desc.data(), &nrows, &ncols, &nrows,
+        descinit_(descriptor.data(), &nrows, &ncols, &nrows,
                   &ncols, &irsrc, &icsrc, &Grid.ctxt, &nrows,
                   &info);
       } else {
-        desc[1] = -1;
+        descriptor[1] = -1;
       }
     } else {
       local_nr = numroc_(&nrows, &block_nrows, &Grid.row,
                          &izero, &Grid.nrows);
       local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
                          &Grid.ncols);
-      //if (Grid.rank == 0) {
-        //std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
-      //}
       lld = std::max(1, local_nr);
-      descinit_(desc.data(), &nrows, &ncols, &block_nrows,
+      if (Grid.rank == 0) {
+        std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+        std::cout << "descinit: " << block_nrows << " " << block_ncols << " " << lld << std::endl;
+      }
+      descinit_(descriptor.data(), &nrows, &ncols, &block_nrows,
                 &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
                 &info);
+      if (Grid.rank == 0) {
+        for (int i = 0; i < descriptor.size(); i++) {
+          std::cout << "desc: " << descriptor[i] << std::endl;
+        }
+      }
     }
   }
 
