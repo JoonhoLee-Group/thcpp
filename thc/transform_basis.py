@@ -106,7 +106,11 @@ def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
     # assuming we have a regular 3d grid of kpoints
     nkpts = len(kpts)
-    ncopy = int(nkpts**(1.0/3.0))
+    nc = int(nkpts**(1.0/3.0))
+    if nc**3 == nkpts:
+        ncopy = nc
+    elif (nc+1)**3 == nkpts:
+        ncopy = nc + 1
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
     dm = mf.make_rdm1()
     dm_sc = kpoints_to_supercell(dm, CikJ)
@@ -115,8 +119,14 @@ def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
     # test_arrays(shcore[0].real, hcore_sc.real)
     nao = dm_sc.shape[-1]
     with h5py.File(thc_data, 'r') as fh5:
-        Muv = fh5['muv'][:]
-        interp_orbs = fh5['phi_iu'][:]
+        try:
+            # old format
+            Muv = fh5['muv'][:]
+            interp_orbs = fh5['phi_iu'][:]
+        except KeyError:
+            # new format
+            Muv = fh5['Hamiltonian/THC/Muv'][:]
+            interp_orbs = fh5['Hamiltonian/THC/orbitals'][:]
     # orbital products
     P = numpy.einsum('ui,uj->uij', interp_orbs.conj(), interp_orbs)
     # construct J and K matrices, note the order of indexing relative to pyscf
