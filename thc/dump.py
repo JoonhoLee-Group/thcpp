@@ -10,6 +10,9 @@ from mpi4py import MPI
 import time
 import h5py
 
+ncopy = int(sys.argv[1])
+c = int(sys.argv[2])
+ngs = int(sys.argv[3])
 alat0 = 3.6
 
 cell = gto.Cell()
@@ -17,12 +20,10 @@ cell.a = (numpy.ones((3,3))-numpy.eye(3))*alat0/2.0
 cell.atom = (('C',0,0,0),('C',numpy.array([0.25,0.25,0.25])*alat0))
 cell.basis = 'gth-dzvp'
 cell.pseudo = 'gth-pade'
-cell.gs = [12]*3  # 10 grids on postive x direction, => 21^3 grids in total
+cell.gs = [ngs]*3  # 10 grids on postive x direction, => 21^3 grids in total
 cell.verbose = 5
 cell.build()
 
-ncopy = int(sys.argv[1])
-c = int(sys.argv[2])
 
 supercell = tools.super_cell(cell, numpy.array([ncopy,ncopy,ncopy]))
 aothc = thc.atomic_orbitals.AOTHC(supercell)
