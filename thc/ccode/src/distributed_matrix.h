@@ -185,9 +185,9 @@ namespace DistributedMatrix
                          &izero, &Grid.nrows);
       local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
                          &Grid.ncols);
-      if (Grid.rank == 0) {
-        std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
-      }
+      //if (Grid.rank == 0) {
+        //std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+      //}
       lld = std::max(1, local_nr);
       descinit_(descriptor.data(), &nrows, &ncols, &block_nrows,
                 &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
@@ -218,18 +218,18 @@ namespace DistributedMatrix
       local_nc = numroc_(&ncols, &block_ncols, &Grid.col, &izero,
                          &Grid.ncols);
       lld = std::max(1, local_nr);
-      if (Grid.rank == 0) {
-        std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
-        std::cout << "descinit: " << block_nrows << " " << block_ncols << " " << lld << std::endl;
-      }
+      //if (Grid.rank == 0) {
+        //std::cout << "descinit: " << local_nr << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+        //std::cout << "descinit: " << block_nrows << " " << block_ncols << " " << lld << std::endl;
+      //}
       descinit_(descriptor.data(), &nrows, &ncols, &block_nrows,
                 &block_ncols, &irsrc, &icsrc, &Grid.ctxt, &lld,
                 &info);
-      if (Grid.rank == 0) {
-        for (int i = 0; i < descriptor.size(); i++) {
-          std::cout << "desc: " << descriptor[i] << std::endl;
-        }
-      }
+      //if (Grid.rank == 0) {
+        //for (int i = 0; i < descriptor.size(); i++) {
+          //std::cout << "desc: " << descriptor[i] << std::endl;
+        //}
+      //}
     }
   }
 
