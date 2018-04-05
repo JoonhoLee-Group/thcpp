@@ -49,13 +49,15 @@ class AOTHC:
         for c in range(self.cmin, self.cmax):
             self.single(c, print_header=False)
 
-    def dump_data(self, CZt, CCt, aoR_mu):
+    def dump_data(self, CZt, CCt, aoR_mu, interp_points):
         with h5py.File('thc_data.h5', 'w') as h5f:
             print ("Array sizes: ", CZt.nbytes / 1e9, CCt.nbytes / 1e9)
             # transposing for ease of read for lapack routines later.
             h5f.create_dataset('CZt', data=CZt.T)
             h5f.create_dataset('CCt', data=CCt.T)
             h5f.create_dataset('aoR_mu', data=aoR_mu)
+            h5f.create_dataset('interp_points',
+                data=interp_points.reshape(interp_points.shape+(1,)))
 
     def single(self, c, print_header=False, solver='numpy'):
         nPts = c*self.nmo
