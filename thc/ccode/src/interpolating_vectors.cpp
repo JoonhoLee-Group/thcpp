@@ -90,31 +90,24 @@ namespace InterpolatingVectors
     // Resize on other processors.
     if (coulG.store.size() != coulG.nrows*coulG.ncols) coulG.store.resize(coulG.nrows*coulG.ncols);
     // Distribute FFT of coulomb kernel to all processors.
-    std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
-    MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
-    if (BH.rank == 0) std::cout << "SUM of IVG: " << global_sum << std::endl;
-    MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
+    //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
+    //if (BH.rank == 0) std::cout << "SUM of IVG: " << global_sum << std::endl;
+    //MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Recall IVGs store is in fortran order so transposed for us.
     for (int i = 0; i < IVG.local_ncols; i++) {
       for (int j = 0; j < IVG.local_nrows; j++) {
         IVG.store[j+i*IVG.local_nrows] *= sqrt(coulG.store[j]);
       }
     }
-    std::complex<double> ls = MatrixOperations::vector_sum(IVG.store);
-    std::complex<double> gs = 0.0;
-    MPI_Reduce(&ls, &gs, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
-    if (BH.rank == 0) std::cout << "Scaled COUL: " << gs << std::endl;
+    //std::complex<double> ls = MatrixOperations::vector_sum(IVG.store);
+    //std::complex<double> gs = 0.0;
+    //MPI_Reduce(&ls, &gs, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
+    //if (BH.rank == 0) std::cout << "Scaled COUL: " << gs << std::endl;
     // Redistributed to block cyclic.
     // magic numbers..
     if (BH.rank == 0) std::cout << " * Redistributing reciprocal space interpolating vectors to block cyclic distribution." << std::endl;
     MatrixOperations::redistribute(IVG, BH.Column, BH.Square, true, 64, 64);
-    MatrixOperations::redistribute(IVG, BH.Square, BH.Root, true, 1, 1);
-    if (BH.rank == 0) {
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      H5::Group base = file.openGroup("/Hamiltonian");
-      IVG.dump_data(file, "/Hamiltonian/THC/", "IVG");
-    }
-    MatrixOperations::redistribute(IVG, BH.Root, BH.Square, true, 64, 64);
     DistributedMatrix::Matrix<std::complex<double> > IVGT(IVG.ncols, IVG.nrows, BH.Square);
     DistributedMatrix::Matrix<std::complex<double> > Muv(IVG.ncols, IVG.ncols, BH.Square);
     // overload product for complex data type.
@@ -127,14 +120,12 @@ namespace InterpolatingVectors
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
     MatrixOperations::product(IVGT, IVG, Muv);
     // Dump matrices to file.
-    // Gather data on root.
     MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
     if (BH.rank == 0) {
       std::cout << " * Dumping THC data to: " << output_file << "." << std::endl;
       std::cout << std::endl;
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       H5::Group base = file.openGroup("/Hamiltonian");
-      std::cout << MatrixOperations::vector_sum(Muv.store) << std::endl;
       Muv.dump_data(file, "/Hamiltonian/THC", "Muv");
     }
   }
@@ -143,42 +134,40 @@ namespace InterpolatingVectors
   {
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
     // parallelism.
-    if (BH.rank == 0) std::cout << "CZ" << std::endl;
     DistributedMatrix::Matrix<double> CZ(CZt.ncols, CZt.nrows, BH.Square);
     MatrixOperations::transpose(CZt, CZ);
     // will now have matrix in C order with local shape (nmu, ngs)
-    double local_sum = MatrixOperations::vector_sum(CZ.store);
-    double global_sum = 0.0;
-    MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    //double local_sum = MatrixOperations::vector_sum(CZ.store);
+    //double global_sum = 0.0;
+    //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     if (BH.rank == 0) {
-      std::cout << "IV SUM: " << global_sum << std::endl;
       std::cout << " * Column cyclic CZ matrix info:" << std::endl;
     }
     // Fortran sees this as a (ngrid, nmu) matrix, so we can distributed vectors of length
     // ngrid cyclically to each processor.
-    local_sum = MatrixOperations::vector_sum(CZ.store);
-    global_sum = 0.0;
-    MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    if (BH.rank == 0) std::cout << "Before: " << MatrixOperations::vector_sum(CZ.store) << " " << global_sum << std::endl;
+    //local_sum = MatrixOperations::vector_sum(CZ.store);
+    //global_sum = 0.0;
+    //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    //if (BH.rank == 0) std::cout << "Before: " << MatrixOperations::vector_sum(CZ.store) << " " << global_sum << std::endl;
     MatrixOperations::redistribute(CZ, BH.Square, BH.Column, true, CZ.nrows, 1);
-    local_sum = MatrixOperations::vector_sum(CZ.store);
-    global_sum = 0.0;
-    MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    //local_sum = MatrixOperations::vector_sum(CZ.store);
+    //global_sum = 0.0;
+    //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     if (BH.rank == 0) {
       std::cout << std::endl;
-      std::cout << "AFter: " << MatrixOperations::vector_sum(CZ.store) << " " << global_sum << std::endl;
+      //std::cout << "AFter: " << MatrixOperations::vector_sum(CZ.store) << " " << global_sum << std::endl;
     }
     // Finally we can FFT interpolating vectors
     fftw_plan p;
     int ngs = CZ.nrows;
     int ng = (int)pow(ngs, 1.0/3.0);
     int offset = ngs;
-    std::cout << ng << " " << ngs << " " << offset <<  std::endl;
+    //std::cout << ng << " " << ngs << " " << offset <<  std::endl;
     for (int i = 0; i < CZ.local_ncols; i++) {
       // Data needs to be complex.
       std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZ.store.data()+i*offset, ngs);
       if (BH.rank == 0) {
-        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZ.local_ncols << " " << MatrixOperations::vector_sum(complex_data) << std::endl;
+        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZ.local_ncols << std::endl;
       }
       // there is a routine for many FFTs run into integer overflow here.
       p = fftw_plan_dft_3d(ng, ng, ng, reinterpret_cast<fftw_complex*> (complex_data.data()),
@@ -186,13 +175,6 @@ namespace InterpolatingVectors
                            FFTW_FORWARD, FFTW_ESTIMATE);
       fftw_execute(p);
       fftw_destroy_plan(p);
-    }
-    std::complex<double> ls = MatrixOperations::vector_sum(IVG.store);
-    std::complex<double> gs = 0.0;
-    MPI_Reduce(&ls, &gs, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
-    std::cout << ls << std::endl;
-    if (BH.rank == 0) {
-      std::cout << "IVG SUM: " << gs << " " << ls << std::endl;
     }
   }
 
@@ -207,7 +189,6 @@ namespace InterpolatingVectors
     }
     double tlsq = clock();
     MatrixOperations::least_squares(CCt, CZt);
-    //CZt.redistribute(BH.Square, BH.Root);
     tlsq = clock() - tlsq;
     if (BH.rank == 0) {
       //std::cout << MatrixOperations::vector_sum(CZt.store) << std::endl;
