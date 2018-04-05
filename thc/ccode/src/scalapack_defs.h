@@ -50,5 +50,9 @@ extern "C" {
                 std::complex<double> *A, int *ia, int *ja, int *desca,
                 std::complex<double> *beta,
                 std::complex<double> *C, int *ic, int *jc, int *descc);
+  // Cholesky decomposition
+  void pzpotrf_(char *uplo, int *n,
+                std::complex<double> *A, int *ia, int *ja, int *desca,
+                int *info);
 }
 #endif

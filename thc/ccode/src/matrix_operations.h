@@ -113,6 +113,15 @@ inline void down_sample(DistributedMatrix::Matrix<T> &A, DistributedMatrix::Matr
     }
 }
 
+inline void cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
+{
+  char uplo = 'L';
+  int info;
+  pzpotrf_(&uplo, &A.nrows,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           &info);
+}
+
 inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT)
 {
   char trans = 'T';
