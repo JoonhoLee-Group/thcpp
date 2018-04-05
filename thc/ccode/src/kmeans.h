@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <random>
+#include "json.hpp"
 #include "context_handler.h"
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
@@ -12,7 +13,7 @@ namespace InterpolatingPoints
   class KMeans
   {
     public:
-      KMeans(std::string input_data, int max_iteration, double thresh, int cfac);
+      KMeans(nlohmann::json &input);
       ~KMeans();
       void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR);
     private:

@@ -3,6 +3,7 @@
 #include <time.h>
 #include <fftw3.h>
 #include <complex>
+#include "json.hpp"
 #include "interpolating_vectors.h"
 #include "h5helper.h"
 #include "scalapack_defs.h"
@@ -12,10 +13,10 @@
 
 namespace InterpolatingVectors
 {
-  IVecs::IVecs(std::string in, std::string out, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR)
+  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR)
   {
-    input_file = in;
-    output_file = out;
+    input_file = input.at("orbital_file").get<std::string>();
+    output_file = input.at("output_file").get<std::string>();
     // (Nmu, M)
     DistributedMatrix::Matrix<double> aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
     if (BH.rank == 0) {

@@ -5,18 +5,19 @@
 #include <random>
 #include <time.h>
 #include <mpi.h>
+#include "json.hpp"
 #include "kmeans.h"
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
 
 namespace InterpolatingPoints
 {
-  KMeans::KMeans(std::string input_data, int max_iteration, double thresh, int cfac)
+  KMeans::KMeans(nlohmann::json &input)
   {
-    filename = input_data;
-    max_it = max_iteration;
-    threshold = thresh;
-    thc_cfac = cfac;
+    filename = input.at("orbital_file").get<std::string>();
+    max_it = input.at("kmeans").at("max_it").get<int>();
+    threshold = input.at("kmeans").at("threshold").get<double>();
+    thc_cfac = input.at("thc_cfac").get<int>();
     ndim = 3;
   }
 
