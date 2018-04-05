@@ -90,6 +90,7 @@ namespace InterpolatingVectors
     DistributedMatrix::Matrix<double> coulG(input_file, "fft_coulomb", BH.Root);
     // Resize on other processors.
     if (coulG.store.size() != coulG.nrows*coulG.ncols) coulG.store.resize(coulG.nrows*coulG.ncols);
+    MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Distribute FFT of coulomb kernel to all processors.
     //std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
     //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
