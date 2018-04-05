@@ -188,7 +188,11 @@ def dump_aos(supercell, rotation_matrix, filename='supercell_atomic_orbitals.h5'
 def dump_thc_data(scf_dump, wfn_file='wfn.dat', ao_file='supercell_atomic_orbitals.h5'):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
-    ncopy = int(nkpts**(1.0/3.0))
+    nc = int(nkpts**(1.0/3.0))
+    if nc**3 == nkpts:
+        ncopy = nc
+    elif (nc+1)**3 == nkpts:
+        ncopy = nc + 1
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
     # Extend to large block matrix.
     AORot = scipy.linalg.block_diag(*AORot)
