@@ -121,14 +121,32 @@ namespace InterpolatingVectors
     // overload product for complex data type.
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
     MatrixOperations::product(IVGT, IVG, Muv);
+
+    DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
+    if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
+    MatrixOperations::cholesky(Luv);
+
     // Dump matrices to file.
     MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
+    MatrixOperations::redistribute(Luv, BH.Square, BH.Root);
     if (BH.rank == 0) {
       std::cout << " * Dumping THC data to: " << output_file << "." << std::endl;
       std::cout << std::endl;
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       H5::Group base = file.openGroup("/Hamiltonian");
+      // Actually Muv^T, Muv should be Hermitian..
       Muv.dump_data(file, "/Hamiltonian/THC", "Muv");
+      // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
+      for (int i = 0; i < Luv.nrows; i++) {
+        for (int j = (i+1); j < Luv.ncols; j++) {
+          // Luv is in fortran order.
+          Luv.store[i+j*Luv.nrows] = 0.0;
+        }
+      }
+      // Transform back to C order.
+      DistributedMatrix::Matrix<std::complex<double> > LuvT(Luv.nrows, Luv.ncols, BH.Root);
+      MatrixOperations::transpose(Luv, LuvT);
+      LuvT.dump_data(file, "/Hamiltonian/THC", "Luv");
     }
   }
 
