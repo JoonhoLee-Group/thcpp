@@ -27,12 +27,14 @@ int main(int argc, char* argv[])
   int max_it = 200;
   double threshold = 1e-3;
   int cfac = 5;
+  double sim_time = clock();
   // 1. Determine interpolating points using Veronoi tesselation / KMeans.
   InterpolatingPoints::KMeans KMeansSolver("supercell_atomic_orbitals.h5", max_it, threshold, cfac);
   KMeansSolver.kernel(BH, interp_indxs, aoR);
   //// 2. Determine interpolating vectors via least squares.
-  InterpolatingVectors::IVecs IVSolver("supercell_atomic_orbitals.h5", BH, interp_indxs, aoR);
+  InterpolatingVectors::IVecs IVSolver("supercell_atomic_orbitals.h5", "fcidump.h5", BH, interp_indxs, aoR);
   IVSolver.kernel(BH);
+  if (BH.rank == 0) std::cout << " * Total simulation time : " << (clock()-sim_time) / CLOCKS_PER_SEC << " seconds." << std::endl;
   //DistributedMatrix::Matrix CZt("thc_matrices.h5", "CZt", BH.Root, false);
   //DistributedMatrix::Matrix CCt("thc_matrices.h5", "CCt", BH.Root, false);
   //if (root) {

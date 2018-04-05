@@ -120,6 +120,8 @@ class AOTHC:
 
     def construct_muv(self, ivecs):
         ivecsG = tools.fft(ivecs, self.cell.gs)
+        print ("IVG: ", numpy.sum(ivecsG))
+        print ("IV: ", numpy.sum(ivecs))
 
         # shape (ngs,)
         coulG = (
@@ -128,8 +130,10 @@ class AOTHC:
         )
 
         ivecsG *= numpy.sqrt(coulG)
+        print ("ivg_sum: ", numpy.sum(ivecsG))
 
         Muv = numpy.dot(ivecsG,ivecsG.T.conj())
+        print ("Muv: ", numpy.sum(Muv))
 
         return Muv
 

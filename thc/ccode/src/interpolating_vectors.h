@@ -11,13 +11,13 @@ namespace InterpolatingVectors
   class IVecs
   {
     public:
-      IVecs(std::string file, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR);
+      IVecs(std::string in, std::string out, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR);
       void kernel(ContextHandler::BlacsHandler &BH);
     private:
       void fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG);
-      void dump_thc_data(std::string outfile, DistributedMatrix::Matrix<std::complex<double> > &IVG, ContextHandler::BlacsHandler &BH);
+      void dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG, ContextHandler::BlacsHandler &BH);
       DistributedMatrix::Matrix<double> CCt, CZt;
-      std::string filename, outfile;
+      std::string input_file, output_file;
   };
 }
 #endif
