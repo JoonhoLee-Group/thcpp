@@ -37,7 +37,6 @@ namespace InterpolatingPoints
       // Assign grid point to centroid via argmin.
       grid_map[i] = std::distance(deltas.begin(), std::min_element(deltas.begin(), deltas.end()));
     }
-    std::cout << "GMSUM: " << MatrixOperations::vector_sum(grid_map) << std::endl;
   }
 
   void KMeans::update_centroids(std::vector<double> &rho, std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map)
@@ -66,11 +65,6 @@ namespace InterpolatingPoints
   {
     std::vector<int> interp_idxs(num_interp_pts);
     classify_grid_points(centroids, grid, interp_idxs, true);
-    std::cout << "map2g: " << MatrixOperations::vector_sum(interp_idxs) << std::endl;
-
-    for (int i = 0; i < interp_idxs.size(); i++) {
-      std::cout << "ix: " << interp_idxs[i] << std::endl;
-    }
     std::sort(interp_idxs.begin(), interp_idxs.end());
     for (int i = 0; i < interp_idxs.size()-1; i++) {
       if (interp_idxs[i] == interp_idxs[i+1]) {
@@ -87,7 +81,7 @@ namespace InterpolatingPoints
       tmp[i] = i;
     }
     std::mt19937 mt(7);
-    //std::shuffle(tmp.begin(), tmp.end(), mt);
+    std::shuffle(tmp.begin(), tmp.end(), mt);
     std::copy(tmp.begin(), tmp.begin()+indxs.size(), indxs.begin());
     std::sort(indxs.begin(), indxs.end());
     // fixed for ndim = 3.
@@ -128,7 +122,6 @@ namespace InterpolatingPoints
       for (int i = 0; i < max_it; i++) {
         classify_grid_points(grid.store, current_centroids, grid_map);
         update_centroids(density.store, grid.store, new_centroids, grid_map);
-        std::cout << "CENTROIDS: " << MatrixOperations::vector_sum(current_centroids) << " " << MatrixOperations::vector_sum(new_centroids) << std::endl;
         diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
         diff /= num_interp_pts;
         std::cout << " * Step: " << i << " Error: " << diff << std::endl;
@@ -141,15 +134,8 @@ namespace InterpolatingPoints
       }
       if (diff > threshold) {
         std::cout << " * Threshold not breached. Final Error: " << diff << std::endl;
-        std::string outfile = "cpp_map.h5";
-        H5::H5File file = H5::H5File(outfile.c_str(), H5F_ACC_TRUNC);
         new_centroids.swap(current_centroids);
         interp_indxs = map_to_grid(grid.store, new_centroids);
-        DistributedMatrix::Matrix<double> tmp(num_interp_pts, ndim, BH.Root);
-        tmp.store = new_centroids;
-        grid.dump_data(file, "/", "grid");
-        tmp.dump_data(file, "/", "cntrds");
-        std::cout << "CENTROIDS: " << MatrixOperations::vector_sum(interp_indxs) << std::endl;
       }
     }
     if (root) {
