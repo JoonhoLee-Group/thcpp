@@ -114,6 +114,8 @@ namespace InterpolatingPoints
       std::cout << "#################################################" << std::endl;
       std::cout << "## Finding interpolation points using K-Means. ##" << std::endl;
       std::cout << "#################################################" << std::endl;
+      std::cout << " * Number of interpolating points : " << num_interp_pts << std::endl;
+      std::cout << " * Number of grid points : " << num_grid_pts << std::endl;
       std::cout << std::endl;
       guess_initial_centroids(grid.store, current_centroids);
       for (int i = 0; i < max_it; i++) {
