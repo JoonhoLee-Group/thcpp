@@ -37,7 +37,7 @@ int main(int argc, char** argv)
   std::vector<int> interp_indxs;
   DistributedMatrix::Matrix<double> aoR;
   KMeansSolver.kernel(BH, interp_indxs, aoR);
-  //// 2. Determine interpolating vectors via least squares.
+  // 2. Determine interpolating vectors via least squares.
   InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs, aoR);
   IVSolver.kernel(BH);
   if (BH.rank == 0) std::cout << " * Total simulation time : " << (clock()-sim_time) / CLOCKS_PER_SEC << " seconds." << std::endl;

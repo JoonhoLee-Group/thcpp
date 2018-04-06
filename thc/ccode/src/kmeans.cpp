@@ -124,7 +124,7 @@ namespace InterpolatingPoints
         update_centroids(density.store, grid.store, new_centroids, grid_map);
         diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
         diff /= num_interp_pts;
-        std::cout << " * Step: " << i << " Error: " << diff << std::endl;
+        if (i % 10 == 0) std::cout << " * Step: " << i << " Error: " << diff << std::endl;
         if (diff < threshold) {
           interp_indxs = map_to_grid(grid.store, new_centroids);
           break;
