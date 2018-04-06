@@ -37,5 +37,6 @@ namespace H5Helper
   }
   void write(H5::H5File &fh5, std::string name, std::vector<std::complex<double> > &data, std::vector<hsize_t> &dims);
   void write(H5::H5File &fh5, std::string name, std::vector<double> &data, std::vector<hsize_t> &dims);
+  void write(H5::H5File &fh5, std::string name, std::vector<int> &data, std::vector<hsize_t> &dims);
 }
 #endif

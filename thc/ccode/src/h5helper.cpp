@@ -30,6 +30,15 @@ namespace H5Helper
     dataset.write(data.data(), H5::PredType::NATIVE_DOUBLE);
   }
 
+  void write(H5::H5File &fh5, std::string name, std::vector<int> &data, std::vector<hsize_t> &dims)
+  {
+    H5::DataSpace dataspace(dims.size(), dims.data());
+    H5::DataSet dataset = fh5.createDataSet(name.c_str(),
+                                             H5::PredType::NATIVE_INT,
+                                             dataspace);
+    dataset.write(data.data(), H5::PredType::NATIVE_INT);
+  }
+
   void write(H5::H5File &fh5, std::string dset_name, std::vector<std::complex<double> > &data, std::vector<hsize_t> &dims)
   {
     // Create appropriate data type.
