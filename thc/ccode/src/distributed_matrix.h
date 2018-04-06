@@ -179,6 +179,8 @@ namespace DistributedMatrix
                   &info);
       } else {
         descriptor[1] = -1;
+        local_nr = 0;
+        local_nc = 0;
       }
     } else {
       local_nr = numroc_(&nrows, &block_nrows, &Grid.row,
