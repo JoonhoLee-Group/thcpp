@@ -190,7 +190,7 @@ def dump_aos(supercell, rotation_matrix, ortho_ao=False, filename='supercell_ato
         rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
-        fh5.create_dataset('aoR', data=aoR)
+        fh5.create_dataset('aoR', data=aoR.astype(complex))
         fh5.create_dataset('density', data=rho)
         fh5.create_dataset('fft_coulomb', data=coulG.reshape(coulG.shape+(1,)))
         fh5.flush()

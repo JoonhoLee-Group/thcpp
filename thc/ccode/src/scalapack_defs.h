@@ -38,6 +38,12 @@ extern "C" {
                double *B, int *ib, int *jb, int *descb,
                double *WORK, int *lwork,
                int *info);
+  void pzgels_(char *trans,
+               int *m, int *n, int *nrhs,
+               std::complex<double> *A, int *ia, int *ja, int *desca,
+               std::complex<double> *B, int *ib, int *jb, int *descb,
+               std::complex<double> *WORK, int *lwork,
+               int *info);
   // Add two matrices.
   void pdgeadd_(char *trans, int *m, int *n,
                 double *alpha,

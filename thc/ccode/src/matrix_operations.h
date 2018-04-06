@@ -88,6 +88,25 @@ inline void least_squares(DistributedMatrix::Matrix<double> &A, DistributedMatri
           WORK.data(), &lwork, &info);
 }
 
+inline void least_squares(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B)
+{
+  char trans = 'N';
+  int lwork = -1, info;
+  std::vector<std::complex<double> > WORK(1);
+  // Workspace query.
+  pzgels_(&trans, &A.nrows, &A.ncols, &B.ncols,
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
+          WORK.data(), &lwork, &info);
+  lwork = int(WORK[0].real());
+  WORK.resize(lwork);
+  // Actually perform least squares.
+  pzgels_(&trans, &A.nrows, &A.ncols, &B.ncols,
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
+          WORK.data(), &lwork, &info);
+}
+
 // Using native fortran interface to lapack. Assumes arrays are in column major format.
 inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
 {

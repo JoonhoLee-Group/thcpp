@@ -13,12 +13,13 @@
 
 namespace InterpolatingVectors
 {
-  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR)
+  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
   {
     input_file = input.at("orbital_file").get<std::string>();
     output_file = input.at("output_file").get<std::string>();
     // (Nmu, M)
-    DistributedMatrix::Matrix<double> aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
+    DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR", BH.Root);
+    DistributedMatrix::Matrix<std::complex<double> > aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
     if (BH.rank == 0) {
       std::cout << "#################################################" << std::endl;
       std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
@@ -42,7 +43,7 @@ namespace InterpolatingVectors
     aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
     // Actually do need to transpose aoR_mu's data.
     if (BH.rank == 0) {
-      std::vector<double> tmp(aoR_mu.store.size());
+      std::vector<std::complex<double> > tmp(aoR_mu.store.size());
       for (int i = 0; i < aoR_mu.nrows; ++i) {
         for (int j = 0; j < aoR_mu.ncols; ++j) {
           tmp[j*aoR_mu.nrows+i] = aoR_mu.store[i*aoR_mu.ncols+j];
@@ -52,18 +53,16 @@ namespace InterpolatingVectors
     }
     // But shape (Nmu, M) should stay the same.
     // Finally construct CZt.
-    if (BH.rank == 0) {
-      std::cout << " * Constructing CZt matrix" << std::endl;
-    }
     CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Root);
     CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
     if (BH.rank == 0) {
-      MatrixOperations::product(aoR_mu, aoR, CZt);
       // Hadamard products.
+      MatrixOperations::product(aoR_mu, aoR, CZt);
       for (int i = 0; i < CZt.store.size(); ++i) {
         CZt.store[i] *= CZt.store[i];
       }
       //std::cout << MatrixOperations::vector_sum(CZt.store) << std::endl;
+      std::cout << " * Constructing CZt matrix" << std::endl;
       std::cout << " * Matrix Shape: (" << CZt.nrows << ", " << CZt.ncols << ")" << std::endl;
       std::cout << " * Constructing CCt matrix" << std::endl;
       std::cout << " * Matrix Shape: (" << CCt.nrows << ", " << CCt.ncols << ")" << std::endl;
@@ -153,7 +152,7 @@ namespace InterpolatingVectors
   {
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
     // parallelism.
-    DistributedMatrix::Matrix<double> CZ(CZt.ncols, CZt.nrows, BH.Square);
+    DistributedMatrix::Matrix<std::complex<double> > CZ(CZt.ncols, CZt.nrows, BH.Square);
     MatrixOperations::transpose(CZt, CZ);
     // will now have matrix in C order with local shape (nmu, ngs)
     if (BH.rank == 0) {
@@ -172,12 +171,13 @@ namespace InterpolatingVectors
     int offset = ngs;
     for (int i = 0; i < CZ.local_ncols; i++) {
       // Data needs to be complex.
-      std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZ.store.data()+i*offset, ngs);
+      //std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZ.store.data()+i*offset, ngs);
       if (BH.rank == 0) {
         if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZ.local_ncols << std::endl;
       }
       // there is a routine for many FFTs run into integer overflow here.
-      p = fftw_plan_dft_3d(ng, ng, ng, reinterpret_cast<fftw_complex*> (complex_data.data()),
+      p = fftw_plan_dft_3d(ng, ng, ng,
+                           reinterpret_cast<fftw_complex*> (CZ.store.data()+i*offset),
                            reinterpret_cast<fftw_complex*>(IVG.store.data()+i*offset),
                            FFTW_FORWARD, FFTW_ESTIMATE);
       fftw_execute(p);
