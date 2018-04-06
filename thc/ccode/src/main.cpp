@@ -35,10 +35,9 @@ int main(int argc, char** argv)
   // 1. Determine interpolating points using Veronoi tesselation / KMeans.
   InterpolatingPoints::KMeans KMeansSolver(input_data);
   std::vector<int> interp_indxs;
-  DistributedMatrix::Matrix<double> aoR;
-  KMeansSolver.kernel(BH, interp_indxs, aoR);
+  KMeansSolver.kernel(BH, interp_indxs);
   // 2. Determine interpolating vectors via least squares.
-  InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs, aoR);
+  InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs);
   IVSolver.kernel(BH);
   if (BH.rank == 0) std::cout << " * Total simulation time : " << (clock()-sim_time) / CLOCKS_PER_SEC << " seconds." << std::endl;
   MPI_Finalize();
