@@ -19,6 +19,7 @@ namespace InterpolatingVectors
     output_file = input.at("output_file").get<std::string>();
     // (Nmu, M)
     DistributedMatrix::Matrix<double> aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
+    //DistributedMatrix::Matrix<int> interp_points("thc_data.h5", "interp_points", BH.Root, true);
     if (BH.rank == 0) {
       std::cout << "#################################################" << std::endl;
       std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
@@ -27,6 +28,7 @@ namespace InterpolatingVectors
       std::cout << " * Down-sampling aoR to find aoR_mu" << std::endl;
       std::cout << " * Writing aoR_mu to file" << std::endl;
       MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
+      //std::cout << MatrixOperations::vector_sum(aoR_mu.store) << " " << MatrixOperations::vector_sum(aoR.store) << std::endl;
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
       H5::Group base = file.createGroup("/Hamiltonian");
       aoR_mu.dump_data(file, "/Hamiltonian/THC", "orbitals");
@@ -69,19 +71,34 @@ namespace InterpolatingVectors
       std::cout << " * Matrix Shape: (" << CCt.nrows << ", " << CCt.ncols << ")" << std::endl;
       // Need to down sample columns of CZt to form CCt, both of which have their data store
       // in fortran / column major order.
+      //std::string name = "test.h5";
+      //H5::H5File file = H5::H5File(name.c_str(), H5F_ACC_TRUNC);
+      //H5::Group base = file.createGroup("/tmp");
+      //CZt.dump_data(file, "/tmp/test", "CZ");
       MatrixOperations::down_sample(CZt, CCt, interp_indxs, CZt.nrows);
+      //base = file.openGroup("/tmp");
+      //CCt.dump_data(file, "/tmp/test", "CC");
       //std::cout << MatrixOperations::vector_sum(CCt.store) << std::endl;
     }
     // Block cyclically distribute.
     if (BH.rank == 0) {
       std::cout << " * Block cyclic CZt matrix info:" << std::endl;
     }
-    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true);
+    //MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true);
+    //DistributedMatrix::Matrix<double> T1("thc_data.h5", "CZt", BH.Root, false);
+    //CZt = T1;
     if (BH.rank == 0) {
       std::cout << " * Block cyclic CCt matrix info:" << std::endl;
     }
+    //MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true);
+    //DistributedMatrix::Matrix<double> T2("thc_data.h5", "CCt", BH.Root, false);
+    //CCt = T2;
+    if (BH.rank == 0) {
+      std::cout << std::setprecision(16) << MatrixOperations::vector_sum(CCt.store) << " " << MatrixOperations::vector_sum(CZt.store) << std::endl;
+      std::cout << std::endl;
+    }
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true);
     MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true);
-    if (BH.rank == 0) std::cout << std::endl;
   }
 
   void IVecs::dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG, ContextHandler::BlacsHandler &BH)
@@ -92,10 +109,9 @@ namespace InterpolatingVectors
     if (coulG.store.size() != coulG.nrows*coulG.ncols) coulG.store.resize(coulG.nrows*coulG.ncols);
     MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Distribute FFT of coulomb kernel to all processors.
-    //std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
-    //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
-    //if (BH.rank == 0) std::cout << "SUM of IVG: " << global_sum << std::endl;
-    //MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
+    MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (BH.rank == 0) std::cout << "SUM of IVG: " << global_sum << std::endl;
     // Recall IVGs store is in fortran order so transposed for us.
     for (int i = 0; i < IVG.local_ncols; i++) {
       for (int j = 0; j < IVG.local_nrows; j++) {
@@ -210,11 +226,13 @@ namespace InterpolatingVectors
     double tlsq = clock();
     MatrixOperations::least_squares(CCt, CZt);
     tlsq = clock() - tlsq;
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
     if (BH.rank == 0) {
-      //std::cout << MatrixOperations::vector_sum(CZt.store) << std::endl;
+      std::cout << MatrixOperations::vector_sum(CZt.store) << std::endl;
       std::cout << " * Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
     }
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Square);
 
     if (BH.rank == 0) {
       std::cout << "#################################################" << std::endl;
