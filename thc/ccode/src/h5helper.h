@@ -7,7 +7,9 @@ namespace H5Helper
 {
   void read_dataset(H5::DataSet &dset, std::vector<double> &matrix, H5::DataSpace mspace, H5::DataSpace &dspace);
   void read_dataset(H5::DataSet &dset, std::vector<std::complex<double> > &matrix, H5::DataSpace mspace, H5::DataSpace &dspace);
+  void read_dims(std::string filename, std::string data_name, std::vector<hsize_t> &dims);
   void read_dataset(H5::DataSet &dset, std::vector<int> &matrix, H5::DataSpace mspace, H5::DataSpace &dspace);
+
   template <typename T>
   void read_matrix(H5::H5File matrix_file, const H5std_string data_name,
                     std::vector<T> &matrix, std::vector<hsize_t> &dims)

@@ -43,4 +43,19 @@ namespace H5Helper
                                              dataspace);
     dataset.write(data.data(), complex_data_type);
   }
+  void read_dims(std::string filename, std::string data_name, std::vector<hsize_t> &dims)
+  {
+    H5::H5File file = H5::H5File(filename.c_str(), H5F_ACC_RDONLY);
+    const int ndims = 2;
+    // get dataset
+    H5::DataSet dataset = file.openDataSet(data_name.c_str());
+    // get the dataspace
+    H5::DataSpace dataspace = dataset.getSpace();
+    // check that signal has 2 dims
+    if (dataspace.getSimpleExtentNdims() != ndims) {
+      std::cerr << "dataset has wrong number of dimensions" << std::endl;
+    }
+    // get dimensions
+    dataspace.getSimpleExtentDims(dims.data(), NULL);
+  }
 }
