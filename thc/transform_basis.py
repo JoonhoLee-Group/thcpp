@@ -175,9 +175,11 @@ def dump_wavefunction(supercell_mo_orbs, filename='wfn.dat'):
                 f.write('(%.10e, %.10e)'%(val.real, val.imag))
             f.write('\n')
 
-def dump_aos(supercell, rotation_matrix, filename='supercell_atomic_orbitals.h5'):
+def dump_aos(supercell, rotation_matrix, ortho_ao=False, filename='supercell_atomic_orbitals.h5'):
     grid = gen_grid.gen_uniform_grids(supercell)
     aoR = numint.eval_ao(supercell, grid)
+    if ortho_ao:
+        aoR = numpy.dot(aoR, rotation_matrix)
     ngs = grid.shape[0]
     rho = numpy.zeros((grid.shape[0],1))
     coulG = (
@@ -190,12 +192,10 @@ def dump_aos(supercell, rotation_matrix, filename='supercell_atomic_orbitals.h5'
         fh5.create_dataset('real_space_grid', data=grid)
         fh5.create_dataset('aoR', data=aoR)
         fh5.create_dataset('density', data=rho)
-        fh5.create_dataset('ortho_aoR', data=aoR.dot(rotation_matrix))
-        fh5.create_dataset('aoR_orthogonalising_matrix', data=rotation_matrix)
         fh5.create_dataset('fft_coulomb', data=coulG.reshape(coulG.shape+(1,)))
         fh5.flush()
 
-def dump_thc_data(scf_dump, wfn_file='wfn.dat', ao_file='supercell_atomic_orbitals.h5'):
+def dump_thc_data(scf_dump, ortho_ao=False, wfn_file='wfn.dat', ao_file='supercell_atomic_orbitals.h5'):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
     nc = int(nkpts**(1.0/3.0))
@@ -219,7 +219,7 @@ def dump_thc_data(scf_dump, wfn_file='wfn.dat', ao_file='supercell_atomic_orbita
     AORot = (CikJ.conj().T).dot(AORot.dot(CikJ))
     # Dump thc data.
     print ("Writing supercell AOs to %s"%ao_file)
-    dump_aos(supercell, AORot, filename=ao_file)
+    dump_aos(supercell, AORot, ortho_ao=ortho_ao, filename=ao_file)
 
 def dump_wavefunction_old(scf_dump):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
