@@ -15,7 +15,7 @@ namespace InterpolatingPoints
     public:
       KMeans(nlohmann::json &input);
       ~KMeans();
-      void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR);
+      void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs);
     private:
       void classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids,
                                 std::vector<int> &grid_map, bool resize_deltas=false);

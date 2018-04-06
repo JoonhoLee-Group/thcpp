@@ -92,19 +92,16 @@ namespace InterpolatingPoints
     }
   }
 
-  void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, DistributedMatrix::Matrix<double> &aoR)
+  void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
   {
-    // real space supercell atomic orbitals.
-    DistributedMatrix::Matrix<double> aoR_tmp(filename, "aoR", BH.Root);
-    aoR = aoR_tmp;
-    // Free up memory.
-    aoR_tmp.store.clear();
     // real space grid.
     DistributedMatrix::Matrix<double> grid(filename, "real_space_grid", BH.Root);
     // "electron density" from supercell atomic orbitals.
     DistributedMatrix::Matrix<double> density(filename, "density", BH.Root);
-    num_interp_pts = thc_cfac * aoR.ncols;
-    num_grid_pts = aoR.nrows;
+    std::vector<hsize_t> dims(2);
+    H5Helper::read_dims(filename, "aoR", dims);
+    num_interp_pts = thc_cfac * dims[1];
+    num_grid_pts = dims[0];
     deltas.resize(num_interp_pts);
     weights.resize(num_interp_pts);
     std::vector<double> current_centroids(num_interp_pts*ndim), new_centroids(num_interp_pts*ndim);
