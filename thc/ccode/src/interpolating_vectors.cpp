@@ -53,11 +53,14 @@ namespace InterpolatingVectors
     }
     // But shape (Nmu, M) should stay the same.
     // Finally construct CZt.
-    CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Root);
+    MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
+    MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
+    CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
+    MatrixOperations::product(aoR_mu, aoR, CZt);
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Root, true);
     CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
     if (BH.rank == 0) {
       // Hadamard products.
-      MatrixOperations::product(aoR_mu, aoR, CZt);
       for (int i = 0; i < CZt.store.size(); ++i) {
         CZt.store[i] *= CZt.store[i];
       }
