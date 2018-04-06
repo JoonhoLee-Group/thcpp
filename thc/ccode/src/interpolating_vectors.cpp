@@ -197,13 +197,10 @@ namespace InterpolatingVectors
     double tlsq = clock();
     MatrixOperations::least_squares(CCt, CZt);
     tlsq = clock() - tlsq;
-    MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
     if (BH.rank == 0) {
-      std::cout << MatrixOperations::vector_sum(CZt.store) << std::endl;
       std::cout << " * Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
     }
-    MatrixOperations::redistribute(CZt, BH.Root, BH.Square);
 
     if (BH.rank == 0) {
       std::cout << "#################################################" << std::endl;
