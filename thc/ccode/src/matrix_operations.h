@@ -179,6 +179,7 @@ inline void redistribute(int m, int n,
     pdgemr2d_(&m, &n, a, &ia, &ib, desca, b, &ia, &ib, descb, &ictxt);
 }
 
+
 inline void redistribute(int m, int n,
                          std::complex<double> *a, int ia, int ja, int *desca,
                          std::complex<double> *b, int ib, int jb, int *descb,
@@ -206,6 +207,7 @@ inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsG
   } else {
     ctxt = GridB.ctxt;
   }
+  std::cout << M.nrows << " " << M.ncols << " " << tmp.size() << " " << M.store.size() << std::endl;
   redistribute(M.nrows, M.ncols,
                M.store.data(), M.init_row_idx, M.init_col_idx, M.desc.data(),
                tmp.data(), M.init_row_idx, M.init_col_idx, descb.data(),

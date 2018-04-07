@@ -56,33 +56,74 @@ namespace InterpolatingVectors
     MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
     MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
     CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
-    MatrixOperations::product(aoR_mu, aoR, CZt);
-    MatrixOperations::redistribute(CZt, BH.Square, BH.Root, true);
-    CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
     if (BH.rank == 0) {
-      // Hadamard products.
-      for (int i = 0; i < CZt.store.size(); ++i) {
-        CZt.store[i] *= CZt.store[i];
-      }
-      //std::cout << MatrixOperations::vector_sum(CZt.store) << std::endl;
       std::cout << " * Constructing CZt matrix" << std::endl;
       std::cout << " * Matrix Shape: (" << CZt.nrows << ", " << CZt.ncols << ")" << std::endl;
-      std::cout << " * Constructing CCt matrix" << std::endl;
-      std::cout << " * Matrix Shape: (" << CCt.nrows << ", " << CCt.ncols << ")" << std::endl;
-      // Need to down sample columns of CZt to form CCt, both of which have their data store
-      // in fortran / column major order.
-      //std::string name = "test.h5";
-      MatrixOperations::down_sample(CZt, CCt, interp_indxs, CZt.nrows);
+      double memory = UTILS::get_memory(CZt.store);
+      std::cout << "  * Local memory usage (on root processor): " << memory << " GB" << std::endl;
+      std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
     }
-    // Block cyclically distribute.
+    MatrixOperations::product(aoR_mu, aoR, CZt);
+    // Hadamard products.
+    for (int i = 0; i < CZt.store.size(); ++i) {
+      CZt.store[i] *= CZt.store[i];
+    }
+    // Need to select columns of CZt to construct CCt.
+    // First redistribute CZt data column cyclically to avoid figuring out how to index
+    // columns in scalapack.
     if (BH.rank == 0) {
-      std::cout << " * Block cyclic CZt matrix info:" << std::endl;
+      std::cout << " * Redistributing CZt column cyclically." << std::endl;
     }
-    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true);
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, 1);
+    std::cout << "HERE: " << BH.rank << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
+    // Next select columns locally 
+    DistributedMatrix::Matrix<double> ix_map(1, CZt.ncols, BH.Root);
+    DistributedMatrix::Matrix<double> test(1, 4, BH.Root);
+    if (BH.rank == 0) for (int i = 0; i < test.store.size(); i++) test.store[i] = i;
+    MPI_Barrier(MPI_COMM_WORLD);
+    MatrixOperations::redistribute(test, BH.Root, BH.Column, true, 4, 1);
+    std::cout << "CCYC: " << test.store[0] << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
     if (BH.rank == 0) {
-      std::cout << " * Block cyclic CCt matrix info:" << std::endl;
+      for (int i = 0; i < ix_map.store.size(); ++i) {
+        int ix = 0;
+        if (interp_indxs[ix] == i) {
+          // Once distributed in same fashion as CZt then this tells us to select column i
+          // of CZt locally.
+          ix_map.store[i] = 1;
+        } else {
+          ix_map.store[i] = -1; 
+        }
+        ix++;
+      }
     }
-    MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true);
+    std::cout << "Redist 2: " << BH.rank << " " << std::endl;
+    // Redistribute to same processor grid as CZt.
+    MPI_Barrier(MPI_COMM_WORLD);
+    MatrixOperations::redistribute(ix_map, BH.Root, BH.Column, true, 1, 1);
+    std::cout << "Redist done: " << BH.rank << " " << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
+    CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Column, CZt.nrows, 1);
+    // Select appropriate columns.
+    MPI_Barrier(MPI_COMM_WORLD);
+    for (int i = 0; i < ix_map.store.size(); ++i) {
+      if (ix_map.store[i] > 0) {
+        // CZt is stored in Fortran format, so columns are contiguous in memory, which is
+        // what we want.
+        if (BH.rank == 2) {
+          std::cout << "ds: " << i << " " << CZt.store.size() << " " << i*CZt.nrows << " " << ix_map.store[i] << " " << CCt.store.size() << std::endl;
+        }
+        std::copy(CZt.store.begin()+i*CZt.nrows,
+                  CZt.store.begin()+(i+1)*CZt.nrows,
+                  CCt.store.begin()+i*CZt.nrows);
+      }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Done down sampling. " << BH.rank << std::endl;
+    // Back to block cyclic distribution for linear algebra.
+    MatrixOperations::redistribute(CZt, BH.Column, BH.Square, true, 64, 64);
+    MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true, 64, 64);
     if (BH.rank == 0) {
       std::cout << std::endl;
     }
