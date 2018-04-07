@@ -114,16 +114,16 @@ namespace InterpolatingPoints
       std::cout << "#################################################" << std::endl;
       std::cout << "## Finding interpolation points using K-Means. ##" << std::endl;
       std::cout << "#################################################" << std::endl;
+      std::cout << std::endl;
       std::cout << " * Number of interpolating points : " << num_interp_pts << std::endl;
       std::cout << " * Number of grid points : " << num_grid_pts << std::endl;
-      std::cout << std::endl;
       guess_initial_centroids(grid.store, current_centroids);
       for (int i = 0; i < max_it; i++) {
         classify_grid_points(grid.store, current_centroids, grid_map);
         update_centroids(density.store, grid.store, new_centroids, grid_map);
         diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
         diff /= num_interp_pts;
-        if (i % 10 == 0) std::cout << " * Step: " << i << " Error: " << diff << std::endl;
+        if (i % 10 == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
         if (diff < threshold) {
           interp_indxs = map_to_grid(grid.store, new_centroids);
           break;

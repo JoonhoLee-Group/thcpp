@@ -77,7 +77,7 @@ namespace InterpolatingVectors
     MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, 1);
     std::cout << "HERE: " << BH.rank << std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
-    // Next select columns locally 
+    // Next select columns locally
     DistributedMatrix::Matrix<double> ix_map(1, CZt.ncols, BH.Root);
     DistributedMatrix::Matrix<double> test(1, 4, BH.Root);
     if (BH.rank == 0) for (int i = 0; i < test.store.size(); i++) test.store[i] = i;
@@ -87,15 +87,10 @@ namespace InterpolatingVectors
     MPI_Barrier(MPI_COMM_WORLD);
     if (BH.rank == 0) {
       for (int i = 0; i < ix_map.store.size(); ++i) {
-        int ix = 0;
-        if (interp_indxs[ix] == i) {
-          // Once distributed in same fashion as CZt then this tells us to select column i
-          // of CZt locally.
-          ix_map.store[i] = 1;
-        } else {
-          ix_map.store[i] = -1; 
-        }
-        ix++;
+          ix_map.store[i] = -1;
+      }
+      for (int i = 0; i < interp_indxs.size(); ++i) {
+        ix_map.store[interp_indxs[i]] = 1;
       }
     }
     std::cout << "Redist 2: " << BH.rank << " " << std::endl;
@@ -104,24 +99,55 @@ namespace InterpolatingVectors
     MatrixOperations::redistribute(ix_map, BH.Root, BH.Column, true, 1, 1);
     std::cout << "Redist done: " << BH.rank << " " << std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
-    CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Column, CZt.nrows, 1);
+    CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
     // Select appropriate columns.
-    MPI_Barrier(MPI_COMM_WORLD);
+    // These will not be evenly distributed amongst processors.
+    std::vector<std::complex<double> > store, col(CZt.nrows);
+    int num_cols = 0;
+    std::cout << ix_map.store.size() << " " << CZt.local_ncols << " " << CZt.local_nrows << std::endl;
     for (int i = 0; i < ix_map.store.size(); ++i) {
       if (ix_map.store[i] > 0) {
         // CZt is stored in Fortran format, so columns are contiguous in memory, which is
         // what we want.
-        if (BH.rank == 2) {
-          std::cout << "ds: " << i << " " << CZt.store.size() << " " << i*CZt.nrows << " " << ix_map.store[i] << " " << CCt.store.size() << std::endl;
-        }
         std::copy(CZt.store.begin()+i*CZt.nrows,
                   CZt.store.begin()+(i+1)*CZt.nrows,
-                  CCt.store.begin()+i*CZt.nrows);
+                  col.begin());
+        store.insert(store.end(), col.begin(), col.end());
+        num_cols++;
       }
     }
+    std::cout << "Store: " << store[0] << "  " << store[CZt.nrows] << std::endl;
+    // Work out how many columns of data we'll receive from each processor.
+    std::cout << " Done mapping : " << BH.rank << std::endl;
+    std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
+    MPI_Gather(&num_cols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    for (int i = 0; i < recv_counts.size(); i++) {
+      std::cout << "RECV: " << recv_counts[i] << " " << MatrixOperations::vector_sum(recv_counts)  << std::endl;
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    disps[0] = 0;
+    recv_counts[0] *= CCt.nrows;
+    for (int i = 1; i < recv_counts.size(); i++) {
+      disps[i] = disps[i-1] + recv_counts[i-1];
+      recv_counts[i] *= CCt.nrows;
+      if (BH.rank == 0) std::cout << "DISPS: " << disps[i] << " " << recv_counts[i] << std::endl;
+    }
+    MPI_Gatherv(store.data(), store.size(), MPI_DOUBLE_COMPLEX,
+                CCt.store.data(), recv_counts.data(), disps.data(), MPI_DOUBLE_COMPLEX,
+                0, MPI_COMM_WORLD);
+    if (BH.rank == 0) std::cout << "STORE AFTER: " << CCt.store[0] << " " << CCt.store[CCt.nrows] << std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
     std::cout << "Done down sampling. " << BH.rank << std::endl;
     // Back to block cyclic distribution for linear algebra.
+
+    H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+    H5::Group base = file.openGroup("/Hamiltonian");
+    if (BH.rank == 0) CCt.dump_data(file, "/Hamiltonian/THC", "CCt_new");
+    std::cout << "PRINT: " << std::endl;
+    //MatrixOperations::redistribute(CZt, BH.Column, BH.Root, true, 64, 64);
+    //std::cout << "REDIST: " << std::endl;
+    //MatrixOperations::down_sample(CZt, CCt, interp_indxs, CZt.nrows);
+    //if (BH.rank == 0) CCt.dump_data(file, "/Hamiltonian/THC", "CCt_new");
     MatrixOperations::redistribute(CZt, BH.Column, BH.Square, true, 64, 64);
     MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true, 64, 64);
     if (BH.rank == 0) {
