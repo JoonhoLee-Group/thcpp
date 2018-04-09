@@ -17,55 +17,57 @@ namespace InterpolatingVectors
   {
     input_file = input.at("orbital_file").get<std::string>();
     output_file = input.at("output_file").get<std::string>();
-    // (Nmu, M)
-    DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR", BH.Root);
-    DistributedMatrix::Matrix<std::complex<double> > aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
-    if (BH.rank == 0) {
-      std::cout << "#################################################" << std::endl;
-      std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
-      std::cout << "#################################################" << std::endl;
-      std::cout << std::endl;
-      std::cout << " * Down-sampling aoR to find aoR_mu" << std::endl;
-      std::cout << " * Writing aoR_mu to file" << std::endl;
-      MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
-      H5::Group base = file.createGroup("/Hamiltonian");
-      aoR_mu.dump_data(file, "/Hamiltonian/THC", "orbitals");
-    }
-    // First need to modify matrices to fortran format.
-    // CZt = aoR_mu aoR^T,
-    // aoR is in C order, so already transposed from Fortran's perspective, just need to
-    // alter nrows and ncols.
-    int tmp = aoR.nrows;
-    aoR.nrows = aoR.ncols;
-    aoR.ncols = tmp;
-    // Done on single processor.
-    aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
-    // Actually do need to transpose aoR_mu's data.
-    if (BH.rank == 0) {
-      std::vector<std::complex<double> > tmp(aoR_mu.store.size());
-      for (int i = 0; i < aoR_mu.nrows; ++i) {
-        for (int j = 0; j < aoR_mu.ncols; ++j) {
-          tmp[j*aoR_mu.nrows+i] = aoR_mu.store[i*aoR_mu.ncols+j];
-        }
+    {
+      // (Ngrid, M)
+      DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR", BH.Root);
+      // (Nmu, M)
+      DistributedMatrix::Matrix<std::complex<double> > aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
+      if (BH.rank == 0) {
+        std::cout << "#################################################" << std::endl;
+        std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
+        std::cout << "#################################################" << std::endl;
+        std::cout << std::endl;
+        std::cout << " * Down-sampling aoR to find aoR_mu" << std::endl;
+        std::cout << " * Writing aoR_mu to file" << std::endl;
+        MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
+        H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
+        H5::Group base = file.createGroup("/Hamiltonian");
+        aoR_mu.dump_data(file, "/Hamiltonian/THC", "orbitals");
       }
-      aoR_mu.store.swap(tmp);
-    }
-    // But shape (Nmu, M) should stay the same.
-    // Finally construct CZt.
-    MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
-    MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
-    CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
-    if (BH.rank == 0) {
-      std::cout << " * Constructing CZt matrix" << std::endl;
-      std::cout << " * Matrix Shape: (" << CZt.nrows << ", " << CZt.ncols << ")" << std::endl;
-      double memory = UTILS::get_memory(CZt.store);
-      std::cout << "  * Local memory usage (on root processor): " << memory << " GB" << std::endl;
-      std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
-    }
-    MatrixOperations::product(aoR_mu, aoR, CZt);
+      // First need to modify matrices to fortran format.
+      // CZt = aoR_mu aoR^T,
+      // aoR is in C order, so already transposed from Fortran's perspective, just need to
+      // alter nrows and ncols.
+      int tmp = aoR.nrows;
+      aoR.nrows = aoR.ncols;
+      aoR.ncols = tmp;
+      aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
+      // Actually do need to transpose aoR_mu's data.
+      if (BH.rank == 0) {
+        std::vector<std::complex<double> > tmp(aoR_mu.store.size());
+        for (int i = 0; i < aoR_mu.nrows; ++i) {
+          for (int j = 0; j < aoR_mu.ncols; ++j) {
+            tmp[j*aoR_mu.nrows+i] = aoR_mu.store[i*aoR_mu.ncols+j];
+          }
+        }
+        aoR_mu.store.swap(tmp);
+      }
+      // But shape (Nmu, M) should stay the same.
+      // Finally construct CZt.
+      MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
+      MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
+      CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
+      if (BH.rank == 0) {
+        std::cout << " * Constructing CZt matrix" << std::endl;
+        std::cout << " * Matrix Shape: (" << CZt.nrows << ", " << CZt.ncols << ")" << std::endl;
+        double memory = UTILS::get_memory(CZt.store);
+        std::cout << "  * Local memory usage (on root processor): " << memory << " GB" << std::endl;
+        std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
+      }
+      MatrixOperations::product(aoR_mu, aoR, CZt);
+    } // Memory from aoR and aoR_mu should be freed.
     // Hadamard products.
-    for (int i = 0; i < CZt.store.size(); ++i) {
+    for (int i = 0; i < CZt.store.size(); i++) {
       CZt.store[i] *= CZt.store[i];
     }
     // Need to select columns of CZt to construct CCt.
@@ -74,81 +76,77 @@ namespace InterpolatingVectors
     if (BH.rank == 0) {
       std::cout << " * Redistributing CZt column cyclically." << std::endl;
     }
-    MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, 1);
-    std::cout << "HERE: " << BH.rank << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-    // Next select columns locally
+    // Number of columns of CZt each processor will get i.e., [rank*ncols_per_block,(rank+1)*ncols_per_block]
+    int ncols_per_block = CZt.ncols / BH.nprocs;
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, ncols_per_block);
+    // Next figure out which columns to select on each processor.
+    // We extend selected index array to be the same size as the CZt.ncols, so that we can
+    // redistribute this array to align with CZt and don't need to figure out any indexing.
+    // not sure if this is any easier than just working out the processor id of the index?
     DistributedMatrix::Matrix<double> ix_map(1, CZt.ncols, BH.Root);
-    DistributedMatrix::Matrix<double> test(1, 4, BH.Root);
-    if (BH.rank == 0) for (int i = 0; i < test.store.size(); i++) test.store[i] = i;
-    MPI_Barrier(MPI_COMM_WORLD);
-    MatrixOperations::redistribute(test, BH.Root, BH.Column, true, 4, 1);
-    std::cout << "CCYC: " << test.store[0] << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
     if (BH.rank == 0) {
-      for (int i = 0; i < ix_map.store.size(); ++i) {
+      for (int i = 0; i < ix_map.store.size(); i++) {
           ix_map.store[i] = -1;
       }
-      for (int i = 0; i < interp_indxs.size(); ++i) {
+      for (int i = 0; i < interp_indxs.size(); i++) {
         ix_map.store[interp_indxs[i]] = 1;
       }
     }
-    std::cout << "Redist 2: " << BH.rank << " " << std::endl;
     // Redistribute to same processor grid as CZt.
+    if (BH.rank == 0) {
+      std::cout << " * Redistributing ix_map column cyclically." << std::endl;
+    }
     MPI_Barrier(MPI_COMM_WORLD);
-    MatrixOperations::redistribute(ix_map, BH.Root, BH.Column, true, 1, 1);
-    std::cout << "Redist done: " << BH.rank << " " << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-    CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
-    // Select appropriate columns.
-    // These will not be evenly distributed amongst processors.
-    std::vector<std::complex<double> > store, col(CZt.nrows);
+    MatrixOperations::redistribute(ix_map, BH.Root, BH.Column, true, 1, ncols_per_block);
     int num_cols = 0;
-    std::cout << ix_map.store.size() << " " << CZt.local_ncols << " " << CZt.local_nrows << std::endl;
-    for (int i = 0; i < ix_map.store.size(); ++i) {
-      if (ix_map.store[i] > 0) {
-        // CZt is stored in Fortran format, so columns are contiguous in memory, which is
-        // what we want.
-        std::copy(CZt.store.begin()+i*CZt.nrows,
-                  CZt.store.begin()+(i+1)*CZt.nrows,
-                  col.begin());
-        store.insert(store.end(), col.begin(), col.end());
-        num_cols++;
+    {
+      for (int i = 0; i < ix_map.store.size(); i++) {
+        if (ix_map.store[i] > 0) {
+          // Work out number of selected columns on current processor.
+          // These will not be evenly distributed amongst processors.
+          num_cols++;
+        }
       }
-    }
-    std::cout << "Store: " << store[0] << "  " << store[CZt.nrows] << std::endl;
-    // Work out how many columns of data we'll receive from each processor.
-    std::cout << " Done mapping : " << BH.rank << std::endl;
-    std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
-    MPI_Gather(&num_cols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
-    for (int i = 0; i < recv_counts.size(); i++) {
-      std::cout << "RECV: " << recv_counts[i] << " " << MatrixOperations::vector_sum(recv_counts)  << std::endl;
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    disps[0] = 0;
-    recv_counts[0] *= CCt.nrows;
-    for (int i = 1; i < recv_counts.size(); i++) {
-      disps[i] = disps[i-1] + recv_counts[i-1];
-      recv_counts[i] *= CCt.nrows;
-      if (BH.rank == 0) std::cout << "DISPS: " << disps[i] << " " << recv_counts[i] << std::endl;
-    }
-    MPI_Gatherv(store.data(), store.size(), MPI_DOUBLE_COMPLEX,
-                CCt.store.data(), recv_counts.data(), disps.data(), MPI_DOUBLE_COMPLEX,
-                0, MPI_COMM_WORLD);
-    if (BH.rank == 0) std::cout << "STORE AFTER: " << CCt.store[0] << " " << CCt.store[CCt.nrows] << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-    std::cout << "Done down sampling. " << BH.rank << std::endl;
+      std::vector<std::complex<double> > local_cols(CZt.nrows*num_cols);
+      num_cols = 0;
+      // Second time around copy data.
+      for (int i = 0; i < ix_map.store.size(); i++) {
+        if (ix_map.store[i] > 0) {
+          // Index in original global array. We need this to sort collected CCt later.
+          // CZt is stored in Fortran format, so columns are contiguous in memory, which is
+          // what we want.
+          std::copy(CZt.store.begin()+i*CZt.nrows,
+                    CZt.store.begin()+(i+1)*CZt.nrows,
+                    local_cols.begin()+num_cols*CZt.nrows);
+          num_cols++;
+        }
+      }
+      // Work out how many columns of data we'll receive from each processor.
+      std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
+      // Figure out number of columns each processor will send to root.
+      MPI_Gather(&num_cols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+      disps[0] = 0;
+      recv_counts[0] *= CZt.nrows;
+      for (int i = 1; i < recv_counts.size(); i++) {
+        disps[i] = disps[i-1] + recv_counts[i-1];
+        recv_counts[i] *= CZt.nrows;
+      }
+      // Because interp_indxs is sorted and we've chunked CZt in an ordered way, then the
+      // selected columns in local_cols will be places in CCt in such a way so as to match
+      // the order in aoR_mu, the down sampled atomic orbitals at the interpolating points.
+      CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
+      MPI_Gatherv(local_cols.data(), num_cols*CCt.nrows, MPI_DOUBLE_COMPLEX,
+                  CCt.store.data(), recv_counts.data(), disps.data(), MPI_DOUBLE_COMPLEX,
+                  0, MPI_COMM_WORLD);
+    } // Memory from local stores should be freed.
     // Back to block cyclic distribution for linear algebra.
-
-    H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-    H5::Group base = file.openGroup("/Hamiltonian");
-    if (BH.rank == 0) CCt.dump_data(file, "/Hamiltonian/THC", "CCt_new");
-    std::cout << "PRINT: " << std::endl;
-    //MatrixOperations::redistribute(CZt, BH.Column, BH.Root, true, 64, 64);
-    //std::cout << "REDIST: " << std::endl;
-    //MatrixOperations::down_sample(CZt, CCt, interp_indxs, CZt.nrows);
-    //if (BH.rank == 0) CCt.dump_data(file, "/Hamiltonian/THC", "CCt_new");
+    if (BH.rank == 0) {
+      std::cout << " * Redistributing CZt block cyclically." << std::endl;
+    }
     MatrixOperations::redistribute(CZt, BH.Column, BH.Square, true, 64, 64);
+    if (BH.rank == 0) {
+      std::cout << " * Redistributing CCt block cyclically." << std::endl;
+    }
     MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true, 64, 64);
     if (BH.rank == 0) {
       std::cout << std::endl;
@@ -188,11 +186,15 @@ namespace InterpolatingVectors
     }
     // numpy.dot(IVG, IVG.conj().T)
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
+    double t_muv = clock();
     MatrixOperations::product(IVGT, IVG, Muv);
+    if (BH.rank == 0) std::cout << "  * Time to construct Muv: " << (clock()-t_muv) / CLOCKS_PER_SEC << " seconds." << std::endl;
 
     DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
     if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
+    double t_chol = clock();
     MatrixOperations::cholesky(Luv);
+    if (BH.rank == 0) std::cout << "  * Time to perform cholesky decomposition on Muv: " << (clock()-t_chol) / CLOCKS_PER_SEC << " seconds." << std::endl;
 
     // Dump matrices to file.
     MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
