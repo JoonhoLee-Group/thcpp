@@ -243,7 +243,15 @@ namespace DistributedMatrix
     ncols = n;
     initialise_descriptor(desc, Grid, local_nrows, local_ncols);
     // Allocate memory.
-    store.resize(local_nrows*local_ncols);
+    if (Grid.nprocs == 1) {
+      // Avoid allocating large chunk of memory on every processor for blacs grids aimed at
+      // gather global matrix locally.
+      if (Grid.rank == 0) {
+        store.resize(local_nrows*local_ncols);
+      }
+    } else {
+        store.resize(local_nrows*local_ncols);
+    }
   }
   template <class T>
   void Matrix<T>::setup_matrix(int m, int n, ContextHandler::BlacsGrid &Grid, int br, int bc)
