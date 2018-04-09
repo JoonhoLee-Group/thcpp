@@ -60,7 +60,7 @@ def unit_cell_to_supercell(cell, kpts, ncopy):
     return (C, supercell)
 
 def init_from_chkfile(chkfile):
-    fh5 = h5py.File(chkfile)
+  with h5py.File(chkfile) as fh5:
     mo_occ = get_kpoint_data(fh5, 'scf/mo_occ__from_list__')
     mo_coeff = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__')
     # benchmark
@@ -75,7 +75,7 @@ def init_from_chkfile(chkfile):
     kmf = scf.KRHF(cell, kpts)
     kmf.mo_coeff = mo_coeff
     kmf.mo_occ = mo_occ
-    return (cell, kmf, hcore, fock, AORot, kpts, energy)
+  return (cell, kmf, hcore, fock, AORot, kpts, energy)
 
 def kpoints_to_supercell(A, C):
     Ablock = scipy.linalg.block_diag(*A)
