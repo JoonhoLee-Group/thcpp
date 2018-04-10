@@ -22,6 +22,7 @@ namespace InterpolatingVectors
       DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR", BH.Root);
       // (Nmu, M)
       DistributedMatrix::Matrix<std::complex<double> > aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
+      DistributedMatrix::Matrix<std::complex<double> > hcore(input_file, "hcore", BH.Root);
       if (BH.rank == 0) {
         std::cout << "#################################################" << std::endl;
         std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
@@ -33,6 +34,17 @@ namespace InterpolatingVectors
         H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
         H5::Group base = file.createGroup("/Hamiltonian");
         aoR_mu.dump_data(file, "/Hamiltonian/THC", "orbitals");
+        // Read in and dump core hamiltonian
+        hcore.dump_data(file, "Hamiltonian/THC", "hcore");
+        // Write constant energy factors to file readable by QMCPACK
+        std::vector<double> energy_constants(2);
+        std::vector<hsize_t> dims(2);
+        H5::H5File fin = H5::H5File(input_file.c_str(), H5F_ACC_RDONLY);
+        H5Helper::read_matrix(fin, "constant_energy_factors", energy_constants, dims);
+        base = file.openGroup("/Hamiltonian/THC");
+        dims.resize(1);
+        dims[0] = 1;
+        H5Helper::write(file, "/Hamiltonian/THC/Energies", energy_constants, dims);
       }
       // First need to modify matrices to fortran format.
       // CZt = aoR_mu aoR^T,
@@ -158,7 +170,7 @@ namespace InterpolatingVectors
     // Read FFT of coulomb kernel.
     DistributedMatrix::Matrix<double> coulG(input_file, "fft_coulomb", BH.Root);
     // Resize on other processors.
-    if (coulG.store.size() != coulG.nrows*coulG.ncols) coulG.store.resize(coulG.nrows*coulG.ncols);
+    if (BH.rank != 0) coulG.store.resize(coulG.nrows*coulG.ncols);
     MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Distribute FFT of coulomb kernel to all processors.
     std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
