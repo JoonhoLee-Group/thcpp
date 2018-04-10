@@ -44,7 +44,6 @@ inline void print_header(int nprocs, nlohmann::json &input_file)
   std::string short_sha1(g_GIT_SHA1);
   std::string dirty(g_GIT_DIRTY);
   std::string flag;
-  std::cout << dirty << std::endl;
   if (dirty == "DIRTY") {
     flag = "-dirty";
   } else {
