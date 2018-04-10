@@ -42,13 +42,13 @@ inline void print_header(int nprocs)
   std::string dirty(g_GIT_DIRTY);
   std::string flag;
   if (dirty == "DIRTY") {
-    flag = "dirty";
+    flag = "-dirty";
   } else {
     flag = "";
   }
   std::cout << "############################################################ " << std::endl;
   std::cout << "# Running on : " << nprocs <<  " processors." << std::endl;
-  std::cout << "# Git info: " << short_sha1.substr(0,8) + "-" + flag << std::endl;
+  std::cout << "# Git info: " << short_sha1.substr(0,8) + flag << std::endl;
   std::cout << "############################################################ " << std::endl;
   std::cout << std::endl;
 }
