@@ -118,24 +118,29 @@ namespace InterpolatingPoints
       std::cout << " * Number of interpolating points : " << num_interp_pts << std::endl;
       std::cout << " * Number of grid points : " << num_grid_pts << std::endl;
       guess_initial_centroids(grid.store, current_centroids);
-      for (int i = 0; i < max_it; i++) {
-        classify_grid_points(grid.store, current_centroids, grid_map);
-        update_centroids(density.store, grid.store, new_centroids, grid_map);
-        diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
-        diff /= num_interp_pts;
-        if (i % 10 == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
-        if (diff < threshold) {
-          interp_indxs = map_to_grid(grid.store, new_centroids);
-          break;
-        } else {
-          new_centroids.swap(current_centroids);
-        }
-      }
-      if (diff > threshold) {
-        std::cout << " * Threshold not breached. Final Error: " << diff << std::endl;
-        new_centroids.swap(current_centroids);
+    }
+    MPI_Bcast(current_centroids.data(), current_centroids.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    num_gridp_per_block = grid.store.size() / (ndim*BH.nprocs);
+    // This might work.
+    MatrixOperations::redistribute(grid, BH.Root, BH.Column, true, num_gridp_per_block, ndim);
+    MatrixOperations::redistribute(density, BH.Root, BH.Column, true, num_gridp_per_block, ndim);
+    for (int i = 0; i < max_it; i++) {
+      classify_grid_points(grid.store, current_centroids, grid_map);
+      update_centroids(density.store, grid.store, new_centroids, grid_map);
+      diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
+      diff /= num_interp_pts;
+      if (i % 10 == 0 && BH.rank == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
+      if (diff < threshold) {
         interp_indxs = map_to_grid(grid.store, new_centroids);
+        break;
+      } else {
+        new_centroids.swap(current_centroids);
       }
+    if (diff > threshold) {
+      std::cout << " * Threshold not breached. Final Error: " << diff << std::endl;
+      new_centroids.swap(current_centroids);
+      interp_indxs = map_to_grid(grid.store, new_centroids);
+    }
     }
     if (root) {
       t_kmeans = clock() - t_kmeans;
