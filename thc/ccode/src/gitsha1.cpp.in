@@ -1,0 +1,4 @@
+#define GIT_SHA1 "@GIT_SHA1@"
+#define GIT_DIRTY "@GIT_DIRTY@"
+extern const char g_GIT_SHA1[] = GIT_SHA1;
+extern const char g_GIT_DIRTY[] = GIT_DIRTY;
