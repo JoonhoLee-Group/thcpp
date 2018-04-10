@@ -28,13 +28,13 @@ int main(int argc, char** argv)
     std::cout << "Usage: tchpp.x input.json" << std::endl;
     exit(EXIT_FAILURE);
   }
-  if (rank == 0) {
-    UTILS::print_header(nprocs);
-  }
   std::ifstream input_file(argv[1]);
   nlohmann::json input_data;
   input_file >> input_data;
   double sim_time = clock();
+  if (rank == 0) {
+    UTILS::print_header(nprocs, input_data);
+  }
   // 1. Determine interpolating points using Veronoi tesselation / KMeans.
   InterpolatingPoints::KMeans KMeansSolver(input_data);
   std::vector<int> interp_indxs;
