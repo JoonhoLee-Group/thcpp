@@ -11,9 +11,16 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 
 include_directories("${PROJECT_SOURCE_DIR}")
 
-add_executable(thcpp.x src/h5helper.cpp src/context_handler.cpp
-               src/kmeans.cpp src/interpolating_vectors.cpp src/main.cpp)
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REFSPEC GIT_SHA1)
+git_local_changes(GIT_DIRTY)
+configure_file("src/gitsha1.cpp.in"
+               ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp @ONLY)
+list(APPEND SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp" gitsha1.h)
 
+add_executable(thcpp.x src/h5helper.cpp src/context_handler.cpp
+    src/kmeans.cpp src/interpolating_vectors.cpp src/main.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp)
 find_package(HDF5 COMPONENTS CXX)
 find_package(FFTW)
 if (FFTW_FOUND)
