@@ -112,6 +112,14 @@ def thc_vjk(P, Muv, dm, get_vk=True):
 
     return (vj, vk)
 
+def contract_thc(P, Muv, dm):
+    t1 = numpy.einsum('uik,ik->u', P, dm)
+    ec = 2 * numpy.einsum('u,uv,v', t1, Muv, t1)
+    t2 = numpy.einsum('uik,il->ukl', P, dm)
+    m1 = numpy.einsum('ukl,uv->vkl', t2, Muv)
+    ex = - numpy.einsum('vkl,vlk->', m1, t2)
+    return (ec, ex)
+
 def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
@@ -122,7 +130,7 @@ def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     # assuming energy ordered.
     psi = mo_orbs[:,:nup]
     # orthogonalised AOs.
-    G = 2*(psi.dot(psi.conj().T)).T # RHF!
+    G = (psi.dot(psi.conj().T)).T
     nkpts = mf.mo_coeff.shape[0]
     AORot = scipy.linalg.block_diag(*AORot)
     hcore = scipy.linalg.block_diag(*hcore)
@@ -136,14 +144,19 @@ def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     # Orbital products.
     P = numpy.einsum('ui,uj->uij', interp_orbs.conj(), interp_orbs)
     (vj, vk) = thc_vjk(P, Muv, G, True)
-    vhf = vj - 0.5 * vk
-    e1b = numpy.einsum('ij,ij->', hcore, G)
-    print (e1b, numpy.einsum('ij,ij->', 0.5*vhf, G))
-    ecoul = 0.5 * numpy.einsum('ij,ij->', vhf, G)
+    # vhf = vj - 0.5 * vk
+    e1b = 2*numpy.einsum('ij,ij->', hcore, G)
+    # print (e1b, numpy.einsum('ij,ij->', 0.5*vj, G))
+    # ecoul = 0.5 * numpy.einsum('ij,ij->', vhf, G)
     enuc = nkpts * mf.energy_nuc()
     exxdiv = -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
-    ehf = (e1b + ecoul + exxdiv + enuc) / nkpts
+    # print (numpy.einsum('ij,ij->', 0.5*vk, G)+exxdiv)
+    ec, ex = contract_thc(P, Muv, G)
+    # ehf = (e1b + ecoul + exxdiv + enuc) / nkpts
+    print (ec, ex, ec+ex+exxdiv, 0.5*numpy.einsum('ij,ij->', G, 0.5*vj))
+    ehf = (e1b + (ec+ex) + exxdiv + enuc) / nkpts
     return (ehf.real, ehf_kpts)
+
 
 def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
     """Compute HF energy using THC approximation to ERIs.
@@ -197,7 +210,8 @@ def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
     vhf = vj - 0.5 * vk
     fock = hcore_sc + vhf
     enuc = mf.energy_nuc() # per cell
-    print (numpy.einsum('ij,ij->', 0.5*vhf, dm_sc))
+    print (numpy.einsum('ij,ij->', 0.5*vj, dm_sc))
+    print (numpy.einsum('ij,ij->', 0.5*vk, dm_sc))
     print (numpy.einsum('ij,ij->', hcore_sc, dm_sc), numpy.einsum('ij,ij->', 0.5*vhf, dm_sc))
     elec = numpy.einsum('ij,ij->', hcore_sc + 0.5*vhf, dm_sc)
     ehf = (elec + nkpts * enuc) / nkpts
