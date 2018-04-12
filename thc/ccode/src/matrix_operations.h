@@ -20,6 +20,15 @@ T vector_sum(std::vector<T> vec)
   return sum;
 }
 
+template <typename T>
+void zero(std::vector<T> &vec)
+{
+  T sum = 0;
+  for (int i = 0; i < vec.size(); i++) {
+    vec[i] = 0;
+  }
+}
+
 inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
 {
   double diff = 0.0;
@@ -141,6 +150,27 @@ inline void cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
            &info);
 }
 
+template <typename T>
+inline void transpose(DistributedMatrix::Matrix<T> &A)
+{
+  std::vector<T> tmp(A.ncols*A.nrows);
+  for (int i = 0; i < A.nrows; i++) {
+    for (int j = 0; j < A.ncols; j++) {
+      tmp[i+j*A.nrows] = A.store[i*A.ncols+j];
+    }
+  }
+  A.store.swap(tmp);
+  swap_dims(A);
+}
+
+template <typename T>
+inline void swap_dims(DistributedMatrix::Matrix<T> &A)
+{
+  int tmp_row = A.nrows;
+  A.nrows = A.ncols;
+  A.ncols = tmp_row;
+}
+
 inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT)
 {
   char trans = 'T';
@@ -217,6 +247,36 @@ inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsG
     double memory = UTILS::get_memory(M.store);
     std::cout << "  * Local memory usage (on root processor) following redistribution: " << memory << " GB" << std::endl;
     std::cout << "  * Local shape (on root processor) following redistribution: (" << M.local_nrows << ", " << M.local_ncols << ")" << std::endl;
+  }
+}
+
+template <class T>
+inline void initialise_descriptor(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, int br, int bc)
+{
+  int irsrc = 0, icsrc = 0;
+  if (BG.nprocs == 1) {
+    Cblacs_gridinfo(BG.ctxt, &BG.nrows, &BG.ncols, &BG.row, &BG.col);
+    if (BG.row == 0 && BG.col == 0) {
+      A.local_nrows = A.nrows;
+      A.local_ncols = A.ncols;
+      descinit_(A.desc.data(), &A.nrows, &A.ncols, &A.nrows,
+                &A.ncols, &irsrc, &icsrc, &BG.ctxt, &A.nrows,
+                &A.info);
+    } else {
+      A.desc[1] = -1;
+      A.local_nrows = 0;
+      A.local_ncols = 0;
+    }
+  } else {
+    A.local_nrows = numroc_(&A.nrows, &br, &BG.row, &A.izero, &BG.nrows);
+    A.local_ncols = numroc_(&A.ncols, &bc, &BG.col, &A.izero, &BG.ncols);
+    //if (BG.rank == 0) {
+      //std::cout << "descinit: " << local_nrows << " " << local_nc << " " << nrows << " " << ncols << std::endl;
+    //}
+    A.lld = std::max(1, A.local_nrows);
+    descinit_(A.desc.data(), &A.nrows, &A.ncols, &br,
+              &bc, &irsrc, &icsrc, &BG.ctxt, &A.lld,
+              &A.info);
   }
 }
 
