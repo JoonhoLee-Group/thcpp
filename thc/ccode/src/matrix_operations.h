@@ -20,6 +20,15 @@ T vector_sum(std::vector<T> vec)
   return sum;
 }
 
+template <typename T>
+void zero(std::vector<T> &vec)
+{
+  T sum = 0;
+  for (int i = 0; i < vec.size(); i++) {
+    vec[i] = 0;
+  }
+}
+
 inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
 {
   double diff = 0.0;
