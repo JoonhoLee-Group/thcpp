@@ -21,6 +21,48 @@ namespace InterpolatingPoints
     ndim = 3;
   }
 
+  void KMeans::scatter_data(std::vector<double> &grid, int num_points, int ndim, ContextHandler::BlacsGrid &BG)
+  {
+    int num_points_per_proc = num_points / BG.nprocs;
+    std::vector<int> send_counts(BG.nprocs), disps(BG.nprocs);
+    int nleft = num_points;
+    if (BG.rank == 0) {
+      for (int i = 0; i < BG.nprocs-1; i++) {
+        send_counts[i] = num_points_per_proc*ndim;
+        nleft -= num_points_per_proc;
+      }
+      send_counts[BG.nprocs-1] = nleft*ndim;
+      disps[0] = 0;
+      for (int i = 1; i < BG.nprocs; i++) {
+        disps[i] = disps[i-1] + send_counts[i-1];
+      }
+    }
+    int nrecv;
+    MPI_Scatter(send_counts.data(), 1, MPI_INT, &nrecv, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    std::vector<double> recv_buf(nrecv);
+    MPI_Scatterv(grid.data(), send_counts.data(), disps.data(), MPI_DOUBLE,
+                 recv_buf.data(), recv_buf.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    grid.swap(recv_buf);
+  }
+
+  void KMeans::gather_data(std::vector<double> &grid, ContextHandler::BlacsGrid &BG)
+  {
+    std::vector<int> recv_counts(BG.nprocs), disps(BG.nprocs);
+    int nsend = grid.size();
+    MPI_Gather(&nsend, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    std::vector<double> recv_buf;
+    if (BG.rank == 0) {
+      disps[0] = 0;
+      for (int i = 1; i < BG.nprocs; i++) {
+        disps[i] = disps[i-1] + recv_counts[i-1];
+      }
+      recv_buf.resize(MatrixOperations::vector_sum(recv_counts));
+    }
+    int ierr = MPI_Gatherv(grid.data(), nsend, MPI_DOUBLE,
+                           recv_buf.data(), recv_counts.data(), disps.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    grid.swap(recv_buf);
+  }
+
   void KMeans::classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map, bool resize_deltas)
   {
     double dx, dy, dz;
