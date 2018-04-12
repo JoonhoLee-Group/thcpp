@@ -13,7 +13,7 @@ namespace InterpolatingPoints
   class KMeans
   {
     public:
-      KMeans(nlohmann::json &input);
+      KMeans(nlohmann::json &input, ContextHandler::BlacsHandler &BH);
       ~KMeans();
       void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs);
     private:
@@ -32,6 +32,7 @@ namespace InterpolatingPoints
       int num_interp_pts, num_grid_pts;
       int thc_cfac;
       int ndim;
+      unsigned int rng_seed;
       // temporary storage.
       std::vector<double> deltas, weights, global_weights, global_centroids;
   };

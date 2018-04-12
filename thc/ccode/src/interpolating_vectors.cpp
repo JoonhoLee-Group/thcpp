@@ -15,8 +15,10 @@ namespace InterpolatingVectors
 {
   IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
   {
-    input_file = input.at("orbital_file").get<std::string>();
-    output_file = input.at("output_file").get<std::string>();
+    if (BH.rank == 0) {
+      input_file = input.at("orbital_file").get<std::string>();
+      output_file = input.at("output_file").get<std::string>();
+    }
     {
       // (Ngrid, M)
       DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR", BH.Root);

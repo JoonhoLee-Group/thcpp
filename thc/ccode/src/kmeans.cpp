@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <random>
 #include <time.h>
+#include <chrono>
 #include <mpi.h>
 #include "json.hpp"
 #include "kmeans.h"
@@ -12,12 +13,26 @@
 
 namespace InterpolatingPoints
 {
-  KMeans::KMeans(nlohmann::json &input)
+  KMeans::KMeans(nlohmann::json &input, ContextHandler::BlacsHandler &BH)
   {
-    filename = input.at("orbital_file").get<std::string>();
-    max_it = input.at("kmeans").at("max_it").get<int>();
-    threshold = input.at("kmeans").at("threshold").get<double>();
-    thc_cfac = input.at("thc_cfac").get<int>();
+    if (BH.rank == 0) {
+      filename = input.at("orbital_file").get<std::string>();
+      max_it = input.at("kmeans").at("max_it").get<int>();
+      threshold = input.at("kmeans").at("threshold").get<double>();
+      try {
+        rng_seed = input.at("kmeans").at("rng_seed").get<int>();
+      }
+      catch (nlohmann::json::out_of_range& error) {
+        std::cout << " * RNG seed not set in input file." << std::endl;
+        rng_seed = std::chrono::system_clock::now().time_since_epoch().count();
+        std::cout << " * Setting RNG seed to : " << rng_seed << std::endl;
+        std::cout << std::endl;
+      }
+      thc_cfac = input.at("thc_cfac").get<int>();
+    }
+    MPI_Bcast(&max_it, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&threshold, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&thc_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
     ndim = 3;
   }
 
@@ -128,7 +143,7 @@ namespace InterpolatingPoints
     for (int i = 0; i < grid.size()/ndim; i++) {
       tmp[i] = i;
     }
-    std::mt19937 mt(7);
+    std::mt19937 mt(rng_seed);
     std::shuffle(tmp.begin(), tmp.end(), mt);
     std::copy(tmp.begin(), tmp.begin()+indxs.size(), indxs.begin());
     std::sort(indxs.begin(), indxs.end());
@@ -147,7 +162,8 @@ namespace InterpolatingPoints
     // "electron density" from supercell atomic orbitals.
     DistributedMatrix::Matrix<double> density(filename, "density", BH.Root);
     std::vector<hsize_t> dims(2);
-    H5Helper::read_dims(filename, "aoR", dims);
+    if (BH.rank == 0) H5Helper::read_dims(filename, "aoR", dims);
+    MPI_Bcast(dims.data(), dims.size(), MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
     num_interp_pts = thc_cfac * dims[1];
     num_grid_pts = dims[0];
     // Store for computing argmin.
