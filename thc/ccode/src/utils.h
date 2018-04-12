@@ -51,13 +51,13 @@ inline void print_header(int nprocs, nlohmann::json &input_file)
   }
   auto t = std::chrono::system_clock::now();
   std::time_t running_time = std::chrono::system_clock::to_time_t(t);
-  std::cout << "################################################# " << std::endl;
-  std::cout << "# Running on " << nprocs <<  " processors.      " << std::endl;
-  std::cout << "# Git info: " << short_sha1.substr(0,8) + flag << std::endl;
-  std::cout << "# " << std::ctime(&running_time);
-  std::cout << "# Input file:" << std::endl;
+  //std::cout << "################################################# " << std::endl;
+  std::cout << " * Running on " << nprocs <<  " processors.      " << std::endl;
+  std::cout << " * Git info: " << short_sha1.substr(0,8) + flag << std::endl;
+  std::cout << " * " << std::ctime(&running_time);
+  std::cout << " * Input file:" << std::endl;
   std::cout << input_file.dump(4) << std::endl;
-  std::cout << "################################################# " << std::endl;
+  //std::cout << "################################################# " << std::endl;
   std::cout << std::endl;
 }
 
