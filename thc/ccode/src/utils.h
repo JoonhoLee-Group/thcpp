@@ -39,13 +39,13 @@ inline void print_header(int nprocs, nlohmann::json &input_file)
 {
   std::cout << std::endl;
   //std::cout << "######################################################################## " << std::endl;
-  std::cout << "///////////    //       //        //////       //               //       " << std::endl;
-  std::cout << "    //         //       //      //             //               //       " << std::endl;
-  std::cout << "    //         //       //    //               //               //       " << std::endl;
-  std::cout << "    //         ///////////    //         //////////////   ////////////// " << std::endl;
-  std::cout << "    //         //       //    //               //               //       " << std::endl;
-  std::cout << "    //         //       //     //              //               //       " << std::endl;
-  std::cout << "    //         //       //      ///////        //               //       " << std::endl;
+  std::cout << "///////////    //       //        //////       //               //" << std::endl;
+  std::cout << "    //         //       //      //             //               //" << std::endl;
+  std::cout << "    //         //       //    //               //               //" << std::endl;
+  std::cout << "    //         ///////////    //         //////////////   //////////////" << std::endl;
+  std::cout << "    //         //       //    //               //               //" << std::endl;
+  std::cout << "    //         //       //     //              //               //" << std::endl;
+  std::cout << "    //         //       //      ///////        //               //" << std::endl;
   //std::cout << "######################################################################## " << std::endl;
   std::cout << std::endl;
   std::string short_sha1(g_GIT_SHA1);
