@@ -152,7 +152,6 @@ def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     ehf = (e1b + (ec+ex) + exxdiv + enuc) / nkpts
     return (ehf.real, ehf_kpts)
 
-
 def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
     """Compute HF energy using THC approximation to ERIs.
 
@@ -262,6 +261,8 @@ def dump_aos(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False, filename='supe
         fh5.create_dataset('hcore', data=hcore)
         fh5.create_dataset('constant_energy_factors',
                            data=numpy.array([e0]).reshape(1,1))
+        fh5.create_dataset('num_electrons',
+                           data=numpy.array(supercell.nelec).reshape(1,2))
         fh5.create_dataset('fft_coulomb', data=coulG.reshape(coulG.shape+(1,)))
         fh5.flush()
 
@@ -288,7 +289,7 @@ def dump_thc_data(scf_dump, ortho_ao=False, wfn_file='wfn.dat', ao_file='superce
     # Dump thc data.
     print ("Writing supercell AOs to %s"%ao_file)
     e0 = nkpts * mf.energy_nuc()
-    e0 += -0.5 * cell.nelectron * tools.pbc.madelung(cell, kpts)
+    e0 += -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
     dump_aos(supercell, AORot, CikJ, hcore, e0=e0, ortho_ao=ortho_ao, filename=ao_file)
 
 def dump_wavefunction_old(scf_dump):
