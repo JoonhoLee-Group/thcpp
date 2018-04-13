@@ -19,6 +19,7 @@ namespace InterpolatingVectors
       void dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG, ContextHandler::BlacsHandler &BH);
       DistributedMatrix::Matrix<std::complex<double> > CCt, CZt;
       std::string input_file, output_file;
+      int thc_cfac;
   };
 }
 #endif

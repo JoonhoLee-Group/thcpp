@@ -18,6 +18,7 @@ namespace InterpolatingVectors
     if (BH.rank == 0) {
       input_file = input.at("orbital_file").get<std::string>();
       output_file = input.at("output_file").get<std::string>();
+      thc_cfac = input.at("thc_cfac").get<int>();
     }
     {
       // (Ngrid, M)
@@ -37,16 +38,32 @@ namespace InterpolatingVectors
         H5::Group base = file.createGroup("/Hamiltonian");
         aoR_mu.dump_data(file, "/Hamiltonian/THC", "orbitals");
         // Read in and dump core hamiltonian
-        hcore.dump_data(file, "Hamiltonian/THC", "hcore");
-        // Write constant energy factors to file readable by QMCPACK
-        std::vector<double> energy_constants(2);
+        hcore.dump_data(file, "/Hamiltonian", "hcore");
         std::vector<hsize_t> dims(2);
         H5::H5File fin = H5::H5File(input_file.c_str(), H5F_ACC_RDONLY);
+        // Number of electrons (nup, ndown).
+        std::vector<int> num_elec(2);
+        H5Helper::read_matrix(fin, "num_electrons", num_elec, dims);
+        int nup = num_elec[0], ndown = num_elec[1];
+        // Constant energy factors (nuclear + Madelung).
+        std::vector<double> energy_constants(2);
         H5Helper::read_matrix(fin, "constant_energy_factors", energy_constants, dims);
-        base = file.openGroup("/Hamiltonian/THC");
         dims.resize(1);
         dims[0] = 1;
-        H5Helper::write(file, "/Hamiltonian/THC/Energies", energy_constants, dims);
+        H5Helper::write(file, "/Hamiltonian/Energies", energy_constants, dims);
+        // Other QMCPACK specific metadata.
+        std::vector<int> occups(nup+ndown);
+        MatrixOperations::zero(occups);
+        dims[0] = occups.size();
+        H5Helper::write(file, "/Hamiltonian/occups", occups, dims);
+        int nbasis = aoR.ncols;
+        std::vector<int> qmcpack_dims = {-1, 0, nbasis, nup, ndown, 0, 0, 0};
+        dims[0] = qmcpack_dims.size();
+        H5Helper::write(file, "/Hamiltonian/dims", qmcpack_dims, dims);
+        int nmu = thc_cfac * nbasis;
+        std::vector<int> thc_dims = {nbasis, nmu};
+        dims[0] = 2;
+        H5Helper::write(file, "/Hamiltonian/THC/dims", thc_dims, dims);
       }
       // First need to modify matrices to fortran format.
       // CZt = aoR_mu aoR^T,
