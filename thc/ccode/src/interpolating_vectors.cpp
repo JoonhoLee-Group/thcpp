@@ -36,6 +36,9 @@ namespace InterpolatingVectors
         MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
         H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
         H5::Group base = file.createGroup("/Hamiltonian");
+        // QMCPACK expects the transpose of this matrix and we need to transpose the data
+        // to construct CZt, we'll need to flip the axes however.
+        MatrixOperations::transpose(aoR_mu);
         aoR_mu.dump_data(file, "/Hamiltonian/THC", "orbitals");
         // Read in and dump core hamiltonian
         hcore.dump_data(file, "/Hamiltonian", "hcore");
@@ -64,6 +67,8 @@ namespace InterpolatingVectors
         std::vector<int> thc_dims = {nbasis, nmu};
         dims[0] = 2;
         H5Helper::write(file, "/Hamiltonian/THC/dims", thc_dims, dims);
+      } else {
+        MatrixOperations::swap_dims(aoR_mu);
       }
       // First need to modify matrices to fortran format.
       // CZt = aoR_mu aoR^T,
@@ -73,16 +78,9 @@ namespace InterpolatingVectors
       aoR.nrows = aoR.ncols;
       aoR.ncols = tmp;
       aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
-      // Actually do need to transpose aoR_mu's data.
-      if (BH.rank == 0) {
-        std::vector<std::complex<double> > tmp(aoR_mu.store.size());
-        for (int i = 0; i < aoR_mu.nrows; ++i) {
-          for (int j = 0; j < aoR_mu.ncols; ++j) {
-            tmp[j*aoR_mu.nrows+i] = aoR_mu.store[i*aoR_mu.ncols+j];
-          }
-        }
-        aoR_mu.store.swap(tmp);
-      }
+      // Actually do need to transpose aoR_mu's data this was done above when printing to
+      // file, need revert the shape however.
+      MatrixOperations::swap_dims(aoR_mu);
       // But shape (Nmu, M) should stay the same.
       // Finally construct CZt.
       MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
