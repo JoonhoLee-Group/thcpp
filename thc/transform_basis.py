@@ -113,6 +113,7 @@ def thc_vjk(P, Muv, dm, get_vk=True):
     return (vj, vk)
 
 def contract_thc(P, Muv, dm):
+    # RHF!
     t1 = numpy.einsum('uik,ik->u', P, dm)
     ec = 2 * numpy.einsum('u,uv,v', t1, Muv, t1)
     t2 = numpy.einsum('uik,il->ukl', P, dm)
@@ -143,17 +144,11 @@ def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
         interp_orbs = fh5['Hamiltonian/THC/orbitals'][:]
     # Orbital products.
     P = numpy.einsum('ui,uj->uij', interp_orbs.conj(), interp_orbs)
-    (vj, vk) = thc_vjk(P, Muv, G, True)
-    # vhf = vj - 0.5 * vk
+    # RHF
     e1b = 2*numpy.einsum('ij,ij->', hcore, G)
-    # print (e1b, numpy.einsum('ij,ij->', 0.5*vj, G))
-    # ecoul = 0.5 * numpy.einsum('ij,ij->', vhf, G)
     enuc = nkpts * mf.energy_nuc()
     exxdiv = -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
-    # print (numpy.einsum('ij,ij->', 0.5*vk, G)+exxdiv)
     ec, ex = contract_thc(P, Muv, G)
-    # ehf = (e1b + ecoul + exxdiv + enuc) / nkpts
-    print (ec, ex, ec+ex+exxdiv, 0.5*numpy.einsum('ij,ij->', G, 0.5*vj))
     ehf = (e1b + (ec+ex) + exxdiv + enuc) / nkpts
     return (ehf.real, ehf_kpts)
 
