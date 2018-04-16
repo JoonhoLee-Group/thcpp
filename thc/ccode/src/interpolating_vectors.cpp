@@ -233,7 +233,6 @@ namespace InterpolatingVectors
       std::cout << std::endl;
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       H5::Group base = file.openGroup("/Hamiltonian");
-      //Muv.dump_data(file, "/Hamiltonian/THC", "Muv");
       // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
       for (int i = 0; i < Luv.nrows; i++) {
         for (int j = (i+1); j < Luv.ncols; j++) {
