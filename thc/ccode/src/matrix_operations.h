@@ -151,12 +151,20 @@ inline void cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
 }
 
 template <typename T>
-inline void transpose(DistributedMatrix::Matrix<T> &A)
+inline void transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
 {
   std::vector<T> tmp(A.ncols*A.nrows);
-  for (int i = 0; i < A.nrows; i++) {
-    for (int j = 0; j < A.ncols; j++) {
-      tmp[i+j*A.nrows] = A.store[i*A.ncols+j];
+  if (row_major) {
+    for (int i = 0; i < A.nrows; i++) {
+      for (int j = 0; j < A.ncols; j++) {
+        tmp[i+j*A.nrows] = A.store[i*A.ncols+j];
+      }
+    }
+  } else {
+    for (int i = 0; i < A.nrows; i++) {
+      for (int j = 0; j < A.ncols; j++) {
+        tmp[i*A.ncols+j] = A.store[i+j*A.nrows];
+      }
     }
   }
   A.store.swap(tmp);
