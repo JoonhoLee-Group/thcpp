@@ -35,8 +35,9 @@ namespace H5Helper
     //dataset.read(matrix.data(), H5::PredType::NATIVE_DOUBLE, data_mspace, dataspace);
     read_dataset(dataset, matrix, data_mspace, dataspace);
   }
-  void write(H5::H5File &fh5, std::string name, std::vector<std::complex<double> > &data, std::vector<hsize_t> &dims);
-  void write(H5::H5File &fh5, std::string name, std::vector<double> &data, std::vector<hsize_t> &dims);
-  void write(H5::H5File &fh5, std::string name, std::vector<int> &data, std::vector<hsize_t> &dims);
+  void write(H5::H5File &fh5, std::string name, std::vector<std::complex<double> > &data, std::vector<hsize_t> &dims, bool compress=false);
+  void write(H5::H5File &fh5, std::string name, std::vector<double> &data, std::vector<hsize_t> &dims, bool compress=false);
+  void write(H5::H5File &fh5, std::string name, std::vector<int> &data, std::vector<hsize_t> &dims, bool compress=false);
+  void create_gzip_plist(H5::DSetCreatPropList &plist, std::vector<hsize_t> &dims, hsize_t chunk_size);
 }
 #endif

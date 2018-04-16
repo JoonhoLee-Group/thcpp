@@ -294,7 +294,7 @@ namespace DistributedMatrix
     dims[0] = nrows;
     dims[1] = ncols;
     std::string dset_name = group_name + "/" + dataset_name;
-    H5Helper::write(fh5, dset_name, store, dims);
+    H5Helper::write(fh5, dset_name, store, dims, true);
   }
 
   // Destructor.
