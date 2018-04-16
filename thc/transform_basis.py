@@ -67,23 +67,36 @@ def unit_cell_to_supercell(cell, kpts, ncopy):
     C = C / (ncopy**3.0)**0.5
     return (C, supercell)
 
+
 def init_from_chkfile(chkfile):
   with h5py.File(chkfile) as fh5:
-    mo_occ = get_kpoint_data(fh5, 'scf/mo_occ__from_list__')
-    mo_coeff = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__')
-    # benchmark
     hcore = fh5['scf/hcore'][:]
     fock = fh5['scf/fock'][:]
     energy = fh5['scf/e_tot'][()]
     kpts = fh5['scf/kpts'][:]
     AORot = fh5['scf/orthoAORot'][:]
+    if (len(fock.shape) == 4):
+        uhf = True
+        tmp = get_kpoint_data(fh5, 'scf/mo_occ__from_list__/0__from_list__')
+        mo_occ = numpy.zeros(shape=((2,)+tmp.shape), dtype=tmp.dtype)
+        mo_occ[0] = numpy.copy(tmp)
+        mo_occ[1] = get_kpoint_data(fh5, 'scf/mo_occ__from_list__/1__from_list__')
+        tmp = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__/0__from_list__')
+        mo_coeff = numpy.zeros(shape=((2,)+tmp.shape), dtype=tmp.dtype)
+        mo_coeff[0] = numpy.copy(tmp)
+        mo_coeff[1] = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__/1__from_list__')
+    else:
+        uhf = False
+        mo_occ = get_kpoint_data(fh5, 'scf/mo_occ__from_list__')
+        mo_coeff = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__')
+    # benchmark
     # construct
     cellstr = fh5['mol'][()]
     cell = gto.cell.loads(cellstr)
     kmf = scf.KRHF(cell, kpts)
     kmf.mo_coeff = mo_coeff
     kmf.mo_occ = mo_occ
-  return (cell, kmf, hcore, fock, AORot, kpts, energy)
+  return (cell, kmf, hcore, fock, AORot, kpts, energy, uhf)
 
 def kpoints_to_supercell(A, C):
     Ablock = scipy.linalg.block_diag(*A)
@@ -151,7 +164,7 @@ def get_thc_data(thc_file):
     return (Muv, P)
 
 def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
-    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
+    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
     ncopy = num_copy(nkpts)
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
@@ -177,7 +190,7 @@ def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     return (ehf.real, ehf_kpts)
 
 def compute_potentials(scf_dump, thc_data="fcidump.h5"):
-    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
+    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
     ncopy = num_copy(nkpts)
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
@@ -227,7 +240,7 @@ def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
         Fock matrix calculating using THC ERIs.
     """
     # transformation matrix
-    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
+    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     # assuming we have a regular 3d grid of kpoints
     nkpts = len(kpts)
     ncopy = num_copy(nkpts)
@@ -263,18 +276,28 @@ def getOrthoAORotationSupercell(cell, LINDEP_CUTOFF):
     X = Us[:,sdiag>LINDEP_CUTOFF] / numpy.sqrt(sdiag[sdiag>LINDEP_CUTOFF])
     return X
 
+def write_mo_matrix(out, mos, nao):
+    for i in range(0, nao):
+        for j in range(0, nao):
+            val = mos[i,j]
+            out.write('(%.10e, %.10e) '%(val.real, val.imag))
+        out.write('\n')
+
 def dump_wavefunction(supercell_mo_orbs, filename='wfn.dat'):
-    namelist = "&FCI\n UHF = 0\n FullMO \n NCI = 1\n TYPE = matrix\n/"
+    namelist = "&FCI\n UHF = %d\n FullMO \n NCI = 1\n TYPE = matrix\n/"%(len(supercell_mo_orbs.shape)==3)
     with open(filename, 'w') as f:
         f.write(namelist+'\n')
         f.write('Coefficients: 1.0\n')
         f.write('Determinant: 1\n')
         nao = supercell_mo_orbs.shape[-1]
-        for i in range(0, nao):
-            for j in range(0, nao):
-                val = supercell_mo_orbs[i,j]
-                f.write('(%.10e, %.10e)'%(val.real, val.imag))
-            f.write('\n')
+        if (len(supercell_mo_orbs.shape) == 3):
+            nao = supercell_mo_orbs[0].shape[-1]
+            write_mo_matrix(f, supercell_mo_orbs[0], nao)
+            nao = supercell_mo_orbs[1].shape[-1]
+            write_mo_matrix(f, supercell_mo_orbs[1], nao)
+        else:
+            nao = supercell_mo_orbs.shape[-1]
+            write_mo_matrix(f, supercell_mo_orbs, nao)
 
 def dump_aos(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False, filename='supercell_atomic_orbitals.h5'):
     grid = gen_grid.gen_uniform_grids(supercell)
@@ -323,12 +346,27 @@ def supercell_molecular_orbitals(AORot, fock, CikJ):
     mo_energies, mo_orbs = scipy.linalg.eigh(ortho_fock_sc)
     return (mo_energies, mo_orbs)
 
+def supercell_molecular_orbitals_uhf(AORot, fock, CikJ):
+    # Extend to large block matrix.
+    (tmp_energies, tmp_mo_orbs) = supercell_molecular_orbitals(AORot, fock[0], CikJ)
+    mo_energies = numpy.zeros(shape=((2,)+tmp_energies.shape),
+                              dtype=tmp_energies.dtype)
+    mo_orbs = numpy.zeros(shape=((2,)+tmp_mo_orbs.shape),
+                          dtype=tmp_mo_orbs.dtype)
+    mo_energies[0] = numpy.copy(tmp_energies)
+    mo_orbs[0] = numpy.copy(tmp_mo_orbs)
+    (mo_energies[1], mo_orbs[1]) = supercell_molecular_orbitals(AORot, fock[1], CikJ)
+    return (mo_energies, mo_orbs)
+
 def dump_thc_data(scf_dump, ortho_ao=False, wfn_file='wfn.dat', ao_file='supercell_atomic_orbitals.h5'):
-    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
+    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
     ncopy = num_copy(nkpts)
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
-    (mo_energies, mo_orbs) = supercell_molecular_orbitals(AORot, fock, CikJ)
+    if uhf:
+        (mo_energies, mo_orbs) = supercell_molecular_orbitals_uhf(AORot, fock, CikJ)
+    else:
+        (mo_energies, mo_orbs) = supercell_molecular_orbitals(AORot, fock, CikJ)
     # Dump wavefunction to file.
     print ("Writing trial wavefunction to %s"%wfn_file)
     dump_wavefunction(mo_orbs, filename=wfn_file)
