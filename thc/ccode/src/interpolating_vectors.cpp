@@ -233,8 +233,7 @@ namespace InterpolatingVectors
       std::cout << std::endl;
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       H5::Group base = file.openGroup("/Hamiltonian");
-      // Actually Muv^T, Muv should be Hermitian..
-      Muv.dump_data(file, "/Hamiltonian/THC", "Muv");
+      //Muv.dump_data(file, "/Hamiltonian/THC", "Muv");
       // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
       for (int i = 0; i < Luv.nrows; i++) {
         for (int j = (i+1); j < Luv.ncols; j++) {
@@ -243,9 +242,8 @@ namespace InterpolatingVectors
         }
       }
       // Transform back to C order.
-      DistributedMatrix::Matrix<std::complex<double> > LuvT(Luv.nrows, Luv.ncols, BH.Root);
-      MatrixOperations::transpose(Luv, LuvT);
-      LuvT.dump_data(file, "/Hamiltonian/THC", "Luv");
+      MatrixOperations::transpose(Luv, false);
+      Luv.dump_data(file, "/Hamiltonian/THC", "Luv");
     }
   }
 
