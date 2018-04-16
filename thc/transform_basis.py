@@ -112,14 +112,43 @@ def thc_vjk(P, Muv, dm, get_vk=True):
 
     return (vj, vk)
 
-def contract_thc(P, Muv, dm):
+def contract_thc_old(P, Muv, dm):
     # RHF!
     t1 = numpy.einsum('uik,ik->u', P, dm)
+    with h5py.File('t1.h5', 'w') as fh5:
+        fh5.create_dataset('t1', data=t1)
     ec = 2 * numpy.einsum('u,uv,v', t1, Muv, t1)
     t2 = numpy.einsum('uik,il->ukl', P, dm)
     m1 = numpy.einsum('ukl,uv->vkl', t2, Muv)
     ex = - numpy.einsum('vkl,vlk->', m1, t2)
     return (ec, ex)
+
+def contract_thc(P, Muv, dm):
+    # RHF!
+    t1 = numpy.einsum('ui,ik,uk->u', P.conj(), dm, P)
+    with h5py.File('t1.h5', 'w') as fh5:
+        fh5.create_dataset('t1', data=t1)
+    ec = 2 * numpy.einsum('u,uv,v', t1, Muv, t1)
+    t2 = numpy.einsum('ui,il,vl->uv', P.conj(), dm, P)
+    ex = - numpy.einsum('uv,uv,vu->', t2, Muv, t2)
+    return (ec, ex)
+
+def get_thc_data(thc_file):
+    with h5py.File(thc_file, 'r') as fh5:
+        # old format
+        try:
+            # old format
+            Muv = fh5['muv'][:]
+            P = fh5['phi_iu'][:]
+        except KeyError:
+            # new format
+            Muv = fh5['Hamiltonian/THC/Muv'][:]
+            P = fh5['Hamiltonian/THC/orbitals'][:]
+            if (len(list(fh5['Hamiltonian'].keys())) > 1):
+                # QMCPACK complex format
+                Muv = Muv.view(numpy.complex128).reshape((Muv.shape[0], Muv.shape[1]))
+                P = P.view(numpy.complex128).reshape((P.shape[0], P.shape[1])).T
+    return (Muv, P)
 
 def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
@@ -138,19 +167,43 @@ def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     hcore = AORot.conj().T.dot(hcore).dot(AORot)
     hcore = CikJ.conj().T.dot(hcore).dot(CikJ)
 
-    with h5py.File(thc_data, 'r') as fh5:
-        # new format
-        Muv = fh5['Hamiltonian/THC/Muv'][:]
-        interp_orbs = fh5['Hamiltonian/THC/orbitals'][:]
-    # Orbital products.
-    P = numpy.einsum('ui,uj->uij', interp_orbs.conj(), interp_orbs)
+    (Muv, P) = get_thc_data(thc_data)
     # RHF
-    e1b = 2*numpy.einsum('ij,ij->', hcore, G)
+    e1b = 2 * numpy.einsum('ij,ij->', hcore, G)
     enuc = nkpts * mf.energy_nuc()
     exxdiv = -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
     ec, ex = contract_thc(P, Muv, G)
     ehf = (e1b + (ec+ex) + exxdiv + enuc) / nkpts
     return (ehf.real, ehf_kpts)
+
+def compute_potentials(scf_dump, thc_data="fcidump.h5"):
+    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts) = init_from_chkfile(scf_dump)
+    nkpts = len(kpts)
+    ncopy = num_copy(nkpts)
+    (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
+    (mo_energies, mo_orbs) = supercell_molecular_orbitals(AORot, fock, CikJ)
+    (nup, ndown) = supercell.nelec
+    # assuming energy ordered.
+    psi = mo_orbs[:,:nup]
+    # orthogonalised AOs.
+    G = (psi.dot(psi.conj().T)).T
+    with h5py.File(thc_data, 'r') as fh5:
+        # new format
+        Luv = fh5['Hamiltonian/THC/Luv'][:]
+        P = fh5['Hamiltonian/THC/orbitals'][:]
+    t1 = 2 * numpy.einsum('ui,ij,uj->u', P.conj(), G, P)
+    vbias = numpy.einsum('uq,u->q', Luv, t1)
+    s = numpy.sum(vbias)
+    print ("sum(vbias): (%f, %f)"%(s.real, s.imag))
+    for (i, vb) in enumerate(vbias):
+        print ("%d (%f , %f)"%(i, vb.real, vb.imag))
+    t2 = numpy.einsum('uq,q->u', Luv, vbias)
+    vhs = numpy.einsum('ui,u,uk->ik', P.conj(), t2, P)
+    s = numpy.sum(vhs)
+    print ("sum(vhs): (%f, %f)"%(s.real, s.imag))
+    for i in range(vhs.shape[0]):
+        for j in range(vhs.shape[1]):
+            print ("%d %d (%f, %f)"%(i, j, vhs[i,j].real, vhs[i,j].imag))
 
 def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
     """Compute HF energy using THC approximation to ERIs.
@@ -185,17 +238,10 @@ def compute_thc_hf_energy(scf_dump, thc_data='thc_matrices.h5'):
     hcore_sc = kpoints_to_supercell(hcore, CikJ)
     # test_arrays(shcore[0].real, hcore_sc.real)
     nao = dm_sc.shape[-1]
-    with h5py.File(thc_data, 'r') as fh5:
-        try:
-            # old format
-            Muv = fh5['muv'][:]
-            interp_orbs = fh5['phi_iu'][:]
-        except KeyError:
-            # new format
-            Muv = fh5['Hamiltonian/THC/Muv'][:]
-            interp_orbs = fh5['Hamiltonian/THC/orbitals'][:]
     # orbital products
-    P = numpy.einsum('ui,uj->uij', interp_orbs.conj(), interp_orbs)
+    (Muv, P) = get_thc_data(thc_data)
+    # update ~
+    # P = numpy.einsum('ui,uj->uij', interp_orbs.conj(), interp_orbs)
     (vj, vk) = thc_vjk(P, Muv, dm_sc)
     # Madelung contribution contstructed from the supercell
     _ewald_exxdiv_for_G0(supercell, numpy.zeros(3), dm_sc.reshape(-1,nao,nao),
