@@ -60,7 +60,7 @@ namespace InterpolatingVectors
         dims[0] = occups.size();
         H5Helper::write(file, "/Hamiltonian/occups", occups, dims);
         int nbasis = aoR.ncols;
-        std::vector<int> qmcpack_dims = {-1, 0, nbasis, nup, ndown, 0, 0, 0};
+        std::vector<int> qmcpack_dims = {-1, 0, 0, nbasis, nup, ndown, 0, 0};
         dims[0] = qmcpack_dims.size();
         H5Helper::write(file, "/Hamiltonian/dims", qmcpack_dims, dims);
         int nmu = thc_cfac * nbasis;
