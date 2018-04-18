@@ -54,6 +54,9 @@ namespace InterpolatingVectors
         dims.resize(1);
         dims[0] = 1;
         H5Helper::write(file, "/Hamiltonian/Energies", energy_constants, dims);
+        // Write interpolating indices
+        dims[0] = interp_indxs.size();
+        H5Helper::write(file, "/Hamiltonian/THC/interp_indx", interp_indxs, dims);
         // Other QMCPACK specific metadata.
         std::vector<int> occups(nup+ndown);
         MatrixOperations::zero(occups);
