@@ -222,8 +222,14 @@ namespace InterpolatingVectors
     DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
     if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
     double t_chol = clock();
-    MatrixOperations::cholesky(Luv);
-    if (BH.rank == 0) std::cout << "  * Time to perform cholesky decomposition on Muv: " << (clock()-t_chol) / CLOCKS_PER_SEC << " seconds." << std::endl;
+    int ierr = MatrixOperations::cholesky(Luv);
+    if (BH.rank == 0) {
+      std::cout << "  * Time to perform cholesky decomposition on Muv: " << (clock()-t_chol) / CLOCKS_PER_SEC << " seconds." << std::endl;
+      if (ierr != 0) {
+        std::cout << " * Parallel cholesky failed." << std::endl;
+        std::cout << " * Error code: " << ierr << std::endl;
+      }
+    }
 
     // Dump matrices to file.
     MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
@@ -293,11 +299,15 @@ namespace InterpolatingVectors
       std::cout << " * Performing least squares solve." << std::endl;
     }
     double tlsq = clock();
-    MatrixOperations::least_squares(CCt, CZt);
+    int ierr = MatrixOperations::least_squares(CCt, CZt);
     tlsq = clock() - tlsq;
     if (BH.rank == 0) {
       std::cout << " * Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
+      if (ierr != 0) {
+        std::cout << " * Parallel least squares failed." << std::endl;
+        std::cout << " * Error code: " << ierr << std::endl;
+      }
     }
 
     if (BH.rank == 0) {

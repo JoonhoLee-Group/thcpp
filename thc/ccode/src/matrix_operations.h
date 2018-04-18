@@ -78,7 +78,7 @@ inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, Distrib
 }
 
 // distributed matrix least squares solve.
-inline void least_squares(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &B)
+inline int least_squares(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &B)
 {
   char trans = 'N';
   int lwork = -1, info;
@@ -95,9 +95,10 @@ inline void least_squares(DistributedMatrix::Matrix<double> &A, DistributedMatri
           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
           B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
           WORK.data(), &lwork, &info);
+  return info;
 }
 
-inline void least_squares(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B)
+inline int least_squares(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B)
 {
   char trans = 'N';
   int lwork = -1, info;
@@ -114,10 +115,11 @@ inline void least_squares(DistributedMatrix::Matrix<std::complex<double> > &A, D
           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
           B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
           WORK.data(), &lwork, &info);
+  return info;
 }
 
 // Using native fortran interface to lapack. Assumes arrays are in column major format.
-inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
+inline int least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
 {
   char trans = 'N';
   int lwork = -1, info;
@@ -128,6 +130,7 @@ inline void least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
   WORK.resize(lwork);
   // Actually perform least squares.
   dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
+  return info;
 }
 
 template <typename T>
@@ -141,13 +144,14 @@ inline void down_sample(DistributedMatrix::Matrix<T> &A, DistributedMatrix::Matr
     }
 }
 
-inline void cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
+inline int cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
 {
   char uplo = 'L';
   int info;
   pzpotrf_(&uplo, &A.nrows,
            A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
            &info);
+  return info;
 }
 
 template <typename T>
