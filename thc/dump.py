@@ -36,7 +36,7 @@ interp_points = aothc.kmeans.kernel(aothc.rho, aothc.coords[init,:].copy())
 if comm.rank == 0:
     aoR_mu = aothc.aoR[interp_points,:].copy()
     (CZt, CCt) = aothc.construct_cz_matrices(interp_points, aoR_mu)
-    aothc.dump_data(CZt, CCt, aoR_mu)
+    aothc.dump_data(CZt, CCt, aoR_mu, interp_points)
     print ("SUM: ", numpy.sum(CZt), numpy.sum(CCt))
     print (CZt.shape, CCt.shape, (numpy.abs(CZt) < 1e-8).sum()/(CZt.size),
            (numpy.abs(CCt) < 1e-8).sum()/CCt.size)
