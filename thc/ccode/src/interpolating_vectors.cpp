@@ -330,9 +330,9 @@ namespace InterpolatingVectors
       std::cout << " * Performing FFT on interpolating vectors." << std::endl;
       std::cout << std::endl;
     }
-    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
-    fft_vectors(BH, IVG);
+    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1), IVMG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
+    fft_vectors(BH, IVG, IVMG);
     if (BH.rank == 0) std::cout << std::endl;
-    dump_thc_data(IVG, BH);
+    dump_thc_data(IVG, IVMG, BH);
   }
 }
