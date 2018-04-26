@@ -8,15 +8,26 @@ from pyscf import lib
 from pyscf.pbc import gto,scf,tools,df,ao2mo
 from pyscf.pbc.dft import gen_grid,numint
 from pyscf.lib.chkfile import load
+from pyscf import lib
 from pyscf.pbc.lib.chkfile import load_cell
 from qmctools.orthoAO import getOrthoAORotation
 import thc.utils
+import thc.transform_basis as tb
 
 class AOTHC:
 
-    def __init__(self, supercell):
+    def __init__(self, supercell, ortho=False, scf_dump=None):
         self.coords = gen_grid.gen_uniform_grids(supercell)
-        self.aoR = numint.eval_ao(supercell, self.coords)
+        if ortho:
+            (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = tb.init_from_chkfile(scf_dump)
+            nkpts = len(kpts)
+            ncopy = tb.num_copy(nkpts)
+            (CikJ, supercell) = tb.unit_cell_to_supercell(cell, kpts, ncopy)
+            s1e = lib.asarray(cell.pbc_intor('cint1e_ovlp_sph', hermi=1, kpts=kpts))
+            (mo_energies, mo_orbs, AORot) = tb.supercell_molecular_orbitals(fock, CikJ, s1e)
+            self.aoR = numint.eval_ao(supercell, self.coords).dot(AORot)
+        else:
+            self.aoR = numint.eval_ao(supercell, self.coords)
         self.norm = supercell.vol/self.coords.shape[0]
         self.nmo = self.aoR.shape[1]
         self.rgrid_shape = numpy.array(supercell.gs)*2+1
@@ -113,7 +124,7 @@ class AOTHC:
 
     def read_interpolating_vectors(self, filename):
         data = h5py.File(filename, 'r')
-        return data['interpolating_vectors'][:].T
+        return data['interpolating_vectors'][:]
 
     def dump_thc_data(self, muv, orbs):
         with h5py.File('thc_matrices.h5', 'w') as h5f:
@@ -121,6 +132,7 @@ class AOTHC:
             h5f.create_dataset('phi_iu', data=orbs)
 
     def construct_muv(self, ivecs):
+        print (self.cell.gs.shape, self.cell.gs)
         ivecsG = tools.fft(ivecs, self.cell.gs)
         print ("IVG: ", numpy.sum(ivecsG))
         print ("IV: ", numpy.sum(ivecs))
