@@ -118,6 +118,22 @@ inline int least_squares(DistributedMatrix::Matrix<std::complex<double> > &A, Di
   return info;
 }
 
+inline int least_squares(std::complex<double> *A, std::complex<double> *B, int nrow, int ncol, int nrhs, int &rank, std::vector<double> &s)
+{
+  int lwork = -1, info;
+  std::vector<std::complex<double> > WORK(1);
+  std::vector<double> RWORK(5*std::min(nrow,ncol));
+  // machine precision
+  double rcond = 1e-16*std::max(nrow,ncol);
+  // Workspace query.
+  zgelss_(&nrow, &ncol, &nrhs, A, &nrow, B, &nrow, s.data(), &rcond, &rank, WORK.data(), &lwork, RWORK.data(), &info);
+  lwork = int(WORK[0].real());
+  WORK.resize(lwork);
+  // Actually perform least squares.
+  zgelss_(&nrow, &ncol, &nrhs, A, &nrow, B, &nrow, s.data(), &rcond, &rank, WORK.data(), &lwork, RWORK.data(), &info);
+  return info;
+}
+
 // Using native fortran interface to lapack. Assumes arrays are in column major format.
 inline int least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
 {
@@ -130,6 +146,19 @@ inline int least_squares(double *A, double *B, int nrow, int ncol, int nrhs)
   WORK.resize(lwork);
   // Actually perform least squares.
   dgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
+  return info;
+}
+inline int least_squares(std::complex<double> *A, std::complex<double> *B, int nrow, int ncol, int nrhs)
+{
+  char trans = 'N';
+  int lwork = -1, info;
+  std::vector<std::complex<double> > WORK(1);
+  // Workspace query.
+  zgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
+  lwork = int(WORK[0].real());
+  WORK.resize(lwork);
+  // Actually perform least squares.
+  zgels_(&trans, &nrow, &ncol, &nrhs, A, &nrow, B, &nrow, WORK.data(), &lwork, &info);
   return info;
 }
 
