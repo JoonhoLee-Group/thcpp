@@ -100,7 +100,7 @@ namespace InterpolatingVectors
     } // Memory from aoR and aoR_mu should be freed.
     // Hadamard products.
     for (int i = 0; i < CZt.store.size(); i++) {
-      CZt.store[i] *= CZt.store[i];
+      CZt.store[i] = std::conj(CZt.store[i])*CZt.store[i];
     }
     // Need to select columns of CZt to construct CCt.
     // First redistribute CZt data column cyclically to avoid figuring out how to index
@@ -185,7 +185,8 @@ namespace InterpolatingVectors
     }
   }
 
-  void IVecs::dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG, ContextHandler::BlacsHandler &BH)
+  void IVecs::dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG, DistributedMatrix::Matrix<std::complex<double> > &IVMG,
+                            ContextHandler::BlacsHandler &BH)
   {
     // Read FFT of coulomb kernel.
     DistributedMatrix::Matrix<double> coulG(input_file, "fft_coulomb", BH.Root);
@@ -196,9 +197,10 @@ namespace InterpolatingVectors
     std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
     MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
     // Recall IVGs store is in fortran order so transposed for us.
-    for (int i = 0; i < IVG.local_ncols; i++) {
-      for (int j = 0; j < IVG.local_nrows; j++) {
-        IVG.store[j+i*IVG.local_nrows] *= sqrt(coulG.store[j]);
+    for (int j = 0; j < IVG.local_ncols; j++) {
+      for (int i = 0; i < IVG.local_nrows; i++) {
+        IVG.store[i+j*IVG.local_nrows] *= sqrt(coulG.store[i]);
+        IVMG.store[i+j*IVMG.local_nrows] *= sqrt(coulG.store[i]);
       }
     }
     //std::complex<double> ls = MatrixOperations::vector_sum(IVG.store);
@@ -209,7 +211,9 @@ namespace InterpolatingVectors
     // magic numbers..
     if (BH.rank == 0) std::cout << " * Redistributing reciprocal space interpolating vectors to block cyclic distribution." << std::endl;
     MatrixOperations::redistribute(IVG, BH.Column, BH.Square, true, 64, 64);
-    DistributedMatrix::Matrix<std::complex<double> > IVGT(IVG.ncols, IVG.nrows, BH.Square);
+    MatrixOperations::redistribute(IVMG, BH.Column, BH.Square, true, 64, 64);
+    // (nmu, ngrid)
+    DistributedMatrix::Matrix<std::complex<double> > IVMGT(IVG.ncols, IVG.nrows, BH.Square);
     DistributedMatrix::Matrix<std::complex<double> > Muv(IVG.ncols, IVG.ncols, BH.Square);
     // overload product for complex data type.
     MatrixOperations::transpose(IVG, IVGT);
