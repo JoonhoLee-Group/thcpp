@@ -216,14 +216,11 @@ namespace InterpolatingVectors
     DistributedMatrix::Matrix<std::complex<double> > IVMGT(IVG.ncols, IVG.nrows, BH.Square);
     DistributedMatrix::Matrix<std::complex<double> > Muv(IVG.ncols, IVG.ncols, BH.Square);
     // overload product for complex data type.
-    MatrixOperations::transpose(IVG, IVGT);
-    for (int i = 0; i < IVG.store.size(); i++) {
-      IVG.store[i] = std::conj(IVG.store[i]);
-    }
+    MatrixOperations::transpose(IVMG, IVMGT);
     // numpy.dot(IVG, IVG.conj().T)
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
     double t_muv = clock();
-    MatrixOperations::product(IVGT, IVG, Muv);
+    MatrixOperations::product(IVMGT, IVG, Muv);
     if (BH.rank == 0) std::cout << "  * Time to construct Muv: " << (clock()-t_muv) / CLOCKS_PER_SEC << " seconds." << std::endl;
 
     DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
@@ -259,7 +256,8 @@ namespace InterpolatingVectors
     }
   }
 
-  void IVecs::fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG)
+  void IVecs::fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG,
+                          DistributedMatrix::Matrix<std::complex<double> > &IVMG)
   {
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
     // parallelism.
@@ -284,13 +282,20 @@ namespace InterpolatingVectors
       // Data needs to be complex.
       //std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZ.store.data()+i*offset, ngs);
       if (BH.rank == 0) {
-        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZ.local_ncols << std::endl;
+        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZ.local_ncols << " " << i*offset << std::endl;
       }
       // there is a routine for many FFTs run into integer overflow here.
       p = fftw_plan_dft_3d(ng, ng, ng,
-                           reinterpret_cast<fftw_complex*> (CZ.store.data()+i*offset),
+                           reinterpret_cast<fftw_complex*>(CZ.store.data()+i*offset),
                            reinterpret_cast<fftw_complex*>(IVG.store.data()+i*offset),
                            FFTW_FORWARD, FFTW_ESTIMATE);
+      fftw_execute(p);
+      fftw_destroy_plan(p);
+      // there is a routine for many FFTs run into integer overflow here.
+      p = fftw_plan_dft_3d(ng, ng, ng,
+                           reinterpret_cast<fftw_complex*>(CZ.store.data()+i*offset),
+                           reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*offset),
+                           FFTW_BACKWARD, FFTW_ESTIMATE);
       fftw_execute(p);
       fftw_destroy_plan(p);
     }
