@@ -116,12 +116,14 @@ class KMeans:
         nmu = centroids.shape[0]
         for t in range(self.max_it):
             # Per processor step
+            if (self.rank == 0):
+                print ("kmeans step: %d", t)
             X = self.classify(self.grid, centroids)
             # Global reduce
             c_new = self.centroids(X, nmu)
-            # if t == 67:
-                # print ("NEw: ", c_new)
             d = numpy.linalg.norm(c_new-centroids)
+            if (self.rank == 0):
+                print (t, d)
             if d < self.thresh:
                 self.t_kmeans = time.time() - self.t_kmeans
                 return self.map2grid(c_new)
