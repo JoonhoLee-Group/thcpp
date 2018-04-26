@@ -14,5 +14,16 @@ extern "C" {
               double *B, int *ldb,
               double *WORK, int *lwork,
               int *info);
+  void zgels_(char *trans,
+              int *m, int *n, int *nrhs,
+              std::complex<double> *A, int *lda,
+              std::complex<double> *B, int *ldb,
+              std::complex<double> *WORK, int *lwork,
+              int *info);
+  void zgelss_(int *nrow, int *ncol, int *nrhs,
+               std::complex<double> *A, int *lda, std::complex<double> *B, int *ldb,
+               double *S, double *rcond, int *rank,
+               std::complex<double> *WORK, int *lwork, double *RWORK,
+               int *info);
 }
 #endif
