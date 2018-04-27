@@ -65,11 +65,11 @@ inline void product(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Mat
 }
 
 inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B,
-                    DistributedMatrix::Matrix<std::complex<double> > &C)
+                    DistributedMatrix::Matrix<std::complex<double> > &C, char transA='N', char transB='N')
 {
-  char transa = 'N', transb = 'N';
+  //char transa = 'N', transb = 'N';
   std::complex<double>  one = 1.0, zero = 0.0;
-  pzgemm_(&transa, &transb, &A.nrows, &B.ncols, &A.ncols,
+  pzgemm_(&transA, &transB, &A.nrows, &B.ncols, &A.ncols,
           &one,
           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
           B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
