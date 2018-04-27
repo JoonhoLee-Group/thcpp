@@ -369,6 +369,7 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False,
         fh5.create_dataset('num_electrons',
                            data=numpy.array(supercell.nelec).reshape(1,2))
         fh5.create_dataset('fft_coulomb', data=coulG.reshape(coulG.shape+(1,)))
+        fh5.create_dataset('AORot', data=AORot)
         fh5.flush()
 
 def unitary_transform(A, P):
@@ -405,10 +406,8 @@ def supercell_molecular_orbitals_uhf(AORot, fock, CikJ):
 def dump_thc_data_sc(scf_dump, ortho_ao=False, wfn_file='wfn.dat',
                      orbital_file='orbitals.h5'):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
-    print (AORot.shape)
     AORot = AORot[0]
     fock = fock[0]
-    print (AORot.shape, fock.shape)
     ortho_fock = unitary_transform(fock, AORot)
     (mo_energies, mo_orbs) = scipy.linalg.eigh(ortho_fock)
     dump_trial_wavefunction(mo_orbs, cell.nelec, False, filename=wfn_file)
