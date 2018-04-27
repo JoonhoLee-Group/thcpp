@@ -74,9 +74,9 @@ namespace InterpolatingVectors
         MatrixOperations::swap_dims(aoR_mu);
       }
       // First need to modify matrices to fortran format.
-      // CZt = aoR_mu aoR^T,
+      // CZt = aoR_mu aoR*^T,
       // aoR is in C order, so already transposed from Fortran's perspective, just need to
-      // alter nrows and ncols.
+      // alter nrows and ncols and conjugate its entries.
       int tmp = aoR.nrows;
       aoR.nrows = aoR.ncols;
       aoR.ncols = tmp;
@@ -86,7 +86,10 @@ namespace InterpolatingVectors
       MatrixOperations::swap_dims(aoR_mu);
       // But shape (Nmu, M) should stay the same.
       // Finally construct CZt.
+      // aoR^{*}^T distributed block cyclically, in row major format.
       MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
+      for (int i = 0; i < aoR.store.size(); i++) aoR.store[i] = std::conj(aoR.store[i]);
+      // aoR_mu distributed block cyclically, in row major format.
       MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
       CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
       if (BH.rank == 0) {
@@ -98,9 +101,9 @@ namespace InterpolatingVectors
       }
       MatrixOperations::product(aoR_mu, aoR, CZt);
     } // Memory from aoR and aoR_mu should be freed.
-    // Hadamard products.
+    // Hadamard products, M M*.
     for (int i = 0; i < CZt.store.size(); i++) {
-      CZt.store[i] = std::conj(CZt.store[i])*CZt.store[i];
+      CZt.store[i] = CZt.store[i]*std::conj(CZt.store[i]);
     }
     // Need to select columns of CZt to construct CCt.
     // First redistribute CZt data column cyclically to avoid figuring out how to index
@@ -264,6 +267,9 @@ namespace InterpolatingVectors
     DistributedMatrix::Matrix<std::complex<double> > CZ(CZt.ncols, CZt.nrows, BH.Square);
     MatrixOperations::transpose(CZt, CZ);
     // will now have matrix in C order with local shape (nmu, ngs)
+    // We actually solved for Theta^{*T}, so conjugate to get actual interpolating
+    // vectors.
+    for (int i = 0; i < CZ.store.size(); i++) CZ.store[i] = std::conj(CZ.store[i]);
     if (BH.rank == 0) {
       std::cout << " * Column cyclic CZ matrix info:" << std::endl;
     }
