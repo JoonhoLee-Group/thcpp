@@ -264,42 +264,49 @@ namespace InterpolatingVectors
   {
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
     // parallelism.
-    DistributedMatrix::Matrix<std::complex<double> > CZ(CZt.ncols, CZt.nrows, BH.Square);
-    MatrixOperations::transpose(CZt, CZ);
+    {
+      DistributedMatrix::Matrix<std::complex<double> > CZ(CZt.ncols, CZt.nrows, BH.Square);
+      MatrixOperations::transpose(CZt, CZ);
+      CZt.store.swap(CZ.store);
+      int tmp = CZt.ncols;
+      CZt.ncols = CZt.nrows;
+      CZt.nrows = tmp;
+    }
+    MatrixOperations::initialise_descriptor(CZt, BH.Square, 64, 64);
     // will now have matrix in C order with local shape (nmu, ngs)
     // We actually solved for Theta^{*T}, so conjugate to get actual interpolating
     // vectors.
-    for (int i = 0; i < CZ.store.size(); i++) CZ.store[i] = std::conj(CZ.store[i]);
+    for (int i = 0; i < CZt.store.size(); i++) CZt.store[i] = std::conj(CZt.store[i]);
     if (BH.rank == 0) {
-      std::cout << " * Column cyclic CZ matrix info:" << std::endl;
+      std::cout << " * Column cyclic CZt matrix info:" << std::endl;
     }
     // Fortran sees this as a (ngrid, nmu) matrix, so we can distributed vectors of length
     // ngrid cyclically to each processor.
-    MatrixOperations::redistribute(CZ, BH.Square, BH.Column, true, CZ.nrows, 1);
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, 1);
     if (BH.rank == 0) {
       std::cout << std::endl;
     }
     // Finally we can FFT interpolating vectors
     fftw_plan p;
-    int ngs = CZ.nrows;
+    int ngs = CZt.nrows;
     int ng = (int)pow(ngs, 1.0/3.0);
     int offset = ngs;
-    for (int i = 0; i < CZ.local_ncols; i++) {
+    for (int i = 0; i < CZt.local_ncols; i++) {
       // Data needs to be complex.
-      //std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZ.store.data()+i*offset, ngs);
+      //std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZt.store.data()+i*offset, ngs);
       if (BH.rank == 0) {
-        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZ.local_ncols << " " << i*offset << std::endl;
+        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZt.local_ncols << " " << i*offset << std::endl;
       }
       // there is a routine for many FFTs run into integer overflow here.
       p = fftw_plan_dft_3d(ng, ng, ng,
-                           reinterpret_cast<fftw_complex*>(CZ.store.data()+i*offset),
+                           reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
                            reinterpret_cast<fftw_complex*>(IVG.store.data()+i*offset),
                            FFTW_FORWARD, FFTW_ESTIMATE);
       fftw_execute(p);
       fftw_destroy_plan(p);
       // there is a routine for many FFTs run into integer overflow here.
       p = fftw_plan_dft_3d(ng, ng, ng,
-                           reinterpret_cast<fftw_complex*>(CZ.store.data()+i*offset),
+                           reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
                            reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*offset),
                            FFTW_BACKWARD, FFTW_ESTIMATE);
       fftw_execute(p);
@@ -337,8 +344,19 @@ namespace InterpolatingVectors
       std::cout << std::endl;
     }
     DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1), IVMG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
+    double tfft = clock();
     fft_vectors(BH, IVG, IVMG);
-    if (BH.rank == 0) std::cout << std::endl;
+    tfft = clock() - tfft;
+    if (BH.rank == 0) {
+      std::cout << " * Time to FFT interpolating vectors : " << tfft / CLOCKS_PER_SEC << " seconds" << std::endl;
+      std::cout << std::endl;
+    }
+    double tmuv= clock();
     dump_thc_data(IVG, IVMG, BH);
+    tmuv = clock() - tmuv;
+    if (BH.rank == 0) {
+      std::cout << " * Time to construct Muv : " << tmuv / CLOCKS_PER_SEC << " seconds" << std::endl;
+      std::cout << std::endl;
+    }
   }
 }
