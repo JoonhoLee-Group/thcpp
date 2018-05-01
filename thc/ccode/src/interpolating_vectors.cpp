@@ -183,8 +183,22 @@ namespace InterpolatingVectors
       std::cout << " * Redistributing CCt block cyclically." << std::endl;
     }
     MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true, 64, 64);
-    if (BH.rank == 0) {
-      std::cout << std::endl;
+    // Check rank deficiency.
+    {
+      std::vector<std::complex<double> > tmp(CCt.store);
+      if (BH.rank == 0) std::cout << " * Checking rank of CCt matrix " << std::endl;
+      int rank = MatrixOperations::rank(CCt, BH.Square);
+      if (BH.rank == 0) {
+        if (rank < CCt.nrows) {
+          std::cout << " * WARNING: CCt matrix is rank deficient. Rank = " << rank << std::endl;
+          std::cout << std::endl;
+        } else {
+          std::cout << " * CCt matrix has full rank : " << rank << std::endl;
+          std::cout << std::endl;
+        }
+      }
+      // SVD destroys data in CCt so copy it back.
+      std::copy(tmp.begin(), tmp.end(), CCt.store.data());
     }
   }
 

@@ -321,5 +321,57 @@ inline void initialise_descriptor(DistributedMatrix::Matrix<T> &A, ContextHandle
   }
 }
 
+inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<double> &S, ContextHandler::BlacsGrid &BG)
+{
+  char jobu = 'N', jobvt='N';
+  int lwork = -1, info;
+  std::vector<std::complex<double> > WORK(1);
+  std::vector<double> RWORK(1);
+  // Unused arrays for interface consistency.
+  DistributedMatrix::Matrix<std::complex<double> > U(A.nrows, A.nrows, BG);
+  DistributedMatrix::Matrix<std::complex<double> > VT(A.ncols, A.ncols, BG);
+  // Workspace Query
+  pzgesvd_(&jobu, &jobvt,
+           &A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           S.data(),
+           U.store.data(), &U.init_row_idx, &U.init_col_idx, U.desc.data(),
+           VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
+           WORK.data(), &lwork, RWORK.data(),
+           &info);
+  // Actual computation
+  lwork = int(WORK[0].real());
+  WORK.resize(lwork);
+  int lrwork = int(RWORK[0]);
+  RWORK.resize(lrwork);
+  pzgesvd_(&jobu, &jobvt,
+           &A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           S.data(),
+           U.store.data(), &U.init_row_idx, &U.init_col_idx, U.desc.data(),
+           VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
+           WORK.data(), &lwork, RWORK.data(),
+           &info);
+  return info;
+}
+
+template <class T>
+int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG)
+{
+  // Singular Values.
+  std::vector<double> S(A.nrows);
+  svd(A, S, BG);
+  // Criteria for singular value being numerically close to zero.
+  // Same as is used in numpy/scipy and taken from Numerical Recipes.
+  double rcond = std::max(A.nrows, A.ncols) * S[0] * 1e-16;
+  // S is sorted so this is a bit stupid.
+  // Binary search.
+  int null = 0;
+  for (int i = 0; i < S.size(); i++) {
+    if (S[i] < rcond) null++;
+  }
+  return A.nrows - null;
+}
+
 }
 #endif
