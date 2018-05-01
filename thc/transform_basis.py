@@ -79,9 +79,23 @@ def unit_cell_to_supercell(cell, kpts, ncopy):
     C = C / (ncopy**3.0)**0.5
     return (C, supercell)
 
+def to_native_atom_fmt(cell):
+    atm_str = cell.atom.split()
+    atoms = []
+    natoms = len(atm_str) // 4
+    offset = 4
+    for i in range(0, natoms):
+        atoms.append([atm_str[i*offset],
+                      float(atm_str[i*offset+1]),
+                      float(atm_str[i*offset+2]),
+                      float(atm_str[i*offset+3])])
+    cell.atom = atoms
+
 
 def init_from_chkfile(chkfile):
     cell = load_cell(chkfile)
+    if isinstance(cell.atom, str):
+        to_native_atom_fmt(cell)
     nao = cell.nao_nr()
     hcore = numpy.asarray(lib.chkfile.load(chkfile, 'scf/hcore'))
     fock = numpy.asarray(lib.chkfile.load(chkfile, 'scf/fock'))
