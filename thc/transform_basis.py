@@ -395,7 +395,7 @@ def supercell_molecular_orbitals(fock, CikJ, S):
     # Transform to non-orthogonal supercell AOs
     # S = unitary_transform(S, CikJ)
     S = CikJ.dot(S).dot(CikJ.conj().T)
-    AORot = get_transformed_orthoAO(S, 1e-8)
+    AORot = get_transformed_orthoAO(S, 1e-14)
     fock = scipy.linalg.block_diag(*fock)
     # Transform to non-orthogonal supercell AOs
     # fock_sc = unitary_transform(fock, CikJ)
