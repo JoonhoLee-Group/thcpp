@@ -457,7 +457,7 @@ def dump_thc_data(scf_dump, mos=False, ortho_ao=False,
 def dump_wavefunction_old(scf_dump):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
-    ncopy = int(nkpts**(1.0/3.0))
+    ncopy = num_copy(nkpts)
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
     rdm = mf.make_rdm1()
     rdm = scipy.linalg.block_diag(*rdm)
@@ -510,26 +510,28 @@ def dump_wavefunction_old(scf_dump):
     # attempt 4
     # overlap to for supercell aos
     S = lib.asarray(cell.pbc_intor('cint1e_ovlp_sph', hermi=1, kpts=kpts))
-    (e,o,A) = supercell_molecular_orbtials(fock, CikJ, s1e)
+    (e,o,A) = supercell_molecular_orbitals(fock, CikJ, s1e)
     # S = scipy.linalg.block_diag(*S)
     # S = CikJ.dot(S).dot(CikJ.conj().T)
     # AORot2 = get_transformed_orthoAO(S, 1e-8)
     # In the non-orth-sc basis
+    fock = scipy.linalg.block_diag(*fock)
     fock_sc = (CikJ).dot(fock).dot(CikJ.conj().T)
     # ..
     ortho_fock_sc2 = (A.conj().T).dot(fock_sc).dot(A)
     e4, ev4 = scipy.linalg.eigh(ortho_fock_sc2)
     # test_arrays(e, e2)
-    test_arrays(e, e3)
+    # test_arrays(e, e3)
     test_arrays(e, e4)
     # # HF wavefunction in basis of orthogonalised supercell AOs.
+    nup = supercell.nelec[0]
     psi = ev4[:,:nup]
     G = (psi.dot(psi.conj().T)).T
     hcore_sc = CikJ.dot(hcore).dot(CikJ.conj().T)
-    print ("diff: ", numpy.max(hcore_sc.imag-h1e_sc.imag))
-    hcore_sc_ortho = (AORot2.conj().T).dot(hcore_sc).dot(AORot2)
+    print ("diff: ", numpy.max(hcore_sc-h1e_sc))
+    hcore_sc_ortho = (A.conj().T).dot(hcore_sc).dot(A)
     print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho, G), G.trace())
-    hcore_sc_ortho2 = (AORot2.conj().T).dot(h1e_sc).dot(AORot2)
+    hcore_sc_ortho2 = (A.conj().T).dot(h1e_sc).dot(A)
     print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho2, G), G.trace())
     print (numpy.max(hcore_sc_ortho2-hcore_sc_ortho))
     # print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho, G), G.trace())
