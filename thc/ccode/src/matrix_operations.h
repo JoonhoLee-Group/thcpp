@@ -2,6 +2,7 @@
 #define MATRIX_OPERATIONS_H
 #include <iostream>
 #include <vector>
+#include <algorithm>
 #include <cmath>
 #include "lapack_defs.h"
 #include "scalapack_defs.h"
@@ -32,10 +33,18 @@ void zero(std::vector<T> &vec)
 inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
 {
   double diff = 0.0;
+  double max_a = *std::max_element(a.begin(), a.end());
+  double min_a = *std::min_element(a.begin(), a.end());
+  double abs_max_a = std::max(std::abs(max_a), std::abs(min_a));
+  double max_b = *std::max_element(b.begin(), b.end());
+  double min_b = *std::min_element(b.begin(), b.end());
+  double abs_max_b = std::max(std::abs(max_b), std::abs(min_b));
+  // Triangle inequality.
+  double scale = abs_max_a + abs_max_b;
   for (int i = 0; i < a.size(); i++) {
-    diff += (a[i]-b[i])*(a[i]-b[i]);
+    diff += ((a[i]-b[i])/scale)*((a[i]-b[i])/scale);
   }
-  return sqrt(diff);
+  return scale * sqrt(diff);
 }
 
 template <typename T>

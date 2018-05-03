@@ -202,8 +202,7 @@ namespace InterpolatingPoints
       classify_grid_points(grid.store, current_centroids, grid_map);
       update_centroids(density.store, grid.store, new_centroids, grid_map);
       diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
-      diff /= num_interp_pts;
-      if (i % 10 == 0 && BH.rank == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
+      if (i % 1 == 0 && BH.rank == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
       if (diff < threshold) {
         gather_data(grid.store, BH.Column);
         if (BH.rank == 0) {
