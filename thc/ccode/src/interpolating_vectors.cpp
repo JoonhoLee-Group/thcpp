@@ -186,7 +186,7 @@ namespace InterpolatingVectors
     // Check rank deficiency.
     {
       std::vector<std::complex<double> > tmp(CCt.store);
-      if (BH.rank == 0) std::cout << " * Checking rank of CCt matrix " << std::endl;
+      if (BH.rank == 0) std::cout << " * Checking rank of CCt matrix." << std::endl;
       int rank = MatrixOperations::rank(CCt, BH.Square);
       if (BH.rank == 0) {
         if (rank < CCt.nrows) {
