@@ -8,7 +8,7 @@ if sys.argv[2] == 'ortho':
     mos =  False
 elif sys.argv[2] == 'mos':
     mos = True
-    ortho = False
+    ortho = True
 else:
     ortho = False
     mos = False
