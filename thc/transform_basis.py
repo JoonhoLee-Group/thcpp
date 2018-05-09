@@ -187,14 +187,24 @@ def get_thc_data(thc_file):
                 norb = Luv.shape[0]
                 Luv = Luv.view(numpy.complex128).reshape(norb,norb)
                 Muv = numpy.dot(Luv, Luv.conj().T)
-            P = fh5['Hamiltonian/THC/orbitals'][:]
+            P = fh5['Hamiltonian/THC/Orbitals'][:]
             hcore = fh5['Hamiltonian/hcore'][:]
+            try:
+                Phalf = fh5['Hamiltonian/THC/HalfTransformedOccOrbitals'][:]
+                P = fh5['Hamiltonian/THC/HalfTransformedFullOrbitals'][:]
+                Luv = fh5['Hamiltonian/THC/HalfTransformedLuv'][:]
+                norb = Luv.shape[0]
+                Luv = Luv.view(numpy.complex128).reshape(norb,norb)
+                Muv = numpy.dot(Luv, Luv.conj().T)
+                Phalf = Phalf.view(numpy.complex128).reshape((Phalf.shape[0], Phalf.shape[1])).T
+            except KeyError:
+                Phalf = None
             if (len(list(fh5['Hamiltonian'].keys())) > 1):
                 # QMCPACK complex format
                 Muv = Muv.view(numpy.complex128).reshape((Muv.shape[0], Muv.shape[1]))
                 P = P.view(numpy.complex128).reshape((P.shape[0], P.shape[1])).T
                 hcore = hcore.view(numpy.complex128).reshape((hcore.shape[0], hcore.shape[1]))
-    return (Muv, P, hcore)
+    return (Muv, P, hcore, Phalf)
 
 def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
@@ -324,6 +334,25 @@ def read_mo_matrix(filename):
     orbs = [complex(t[0], t[1]) for t in tuples]
     return numpy.array(orbs)
 
+def thc_coulomb(thc_file, wfn_file):
+    (Muv, aoR_mu, hcore, aoR_half_mu) = get_thc_data(thc_file)
+    with h5py.File(thc_file, 'r') as fh5:
+        nup = fh5['Hamiltonian/dims'][:][4]
+    nmo = aoR_mu.shape[1]
+    c = Muv.shape[0] // nmo
+    print (aoR_mu.shape, aoR_half_mu.shape, c, nup)
+    wfn = read_mo_matrix(wfn_file).reshape(nmo, nmo)
+    psi = wfn[:,:nup]
+    # half rotated G
+    if aoR_half_mu is None:
+        aoR_half_mu = numpy.copy(aoR_mu)
+        G = psi.conj().dot(scipy.linalg.inv(psi.T.dot(psi.conj())).dot(psi.T))
+    else:
+        G = scipy.linalg.inv(psi.T.dot(psi.conj())).dot(psi.T)
+    Guu = numpy.einsum('ua,ak,uk->u', aoR_half_mu.conj(), G, aoR_mu)
+    ecoul = 2*numpy.einsum('u,uv,v->', Guu, Muv, Guu)
+    return (c, ecoul)
+
 def dump_trial_wavefunction(supercell_mo_orbs, nelec, filename='wfn.dat'):
     namelist = "&FCI\n UHF = %d\n FullMO \n NCI = 1\n TYPE = matrix\n/"%(len(supercell_mo_orbs.shape)==3)
     with open(filename, 'w') as f:
@@ -355,21 +384,23 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False,
         if half_rotate:
             nup = supercell.nelec[0]
             aoR_half = numpy.dot(aoR, numpy.identity(AORot.shape[0])[:,:nup])
+            # for i in range(ngs):
+                # rho[i] = numpy.dot(aoR_half[i].conj(),aoR[i]).real   # not normalized
     else:
         hcore = scipy.linalg.block_diag(*hcore)
     ngs = grid.shape[0]
     rho = numpy.zeros((grid.shape[0],1))
+    for i in range(ngs):
+        rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
     coulG = (
         tools.get_coulG(supercell, k=numpy.zeros(3),
                         gs=supercell.gs)*supercell.vol/ngs**2
     )
-    for i in range(ngs):
-        rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
         ao_dset = fh5.create_dataset('aoR', data=aoR.astype(numpy.complex128))
         ao_dset.attrs["orthogonalised"] = ortho_ao
-        ao_dset = fh5.create_dataset('aoR_half', data=aoR.astype(numpy.complex128))
+        ao_dset = fh5.create_dataset('aoR_half', data=aoR_half.astype(numpy.complex128))
         fh5.create_dataset('density', data=rho)
         fh5.create_dataset('hcore', data=hcore)
         fh5.create_dataset('constant_energy_factors',
