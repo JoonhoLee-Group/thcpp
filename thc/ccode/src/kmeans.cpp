@@ -13,7 +13,7 @@
 
 namespace InterpolatingPoints
 {
-  KMeans::KMeans(nlohmann::json &input, ContextHandler::BlacsHandler &BH)
+  KMeans::KMeans(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
       filename = input.at("orbital_file").get<std::string>();
@@ -28,11 +28,10 @@ namespace InterpolatingPoints
         std::cout << " * Setting RNG seed to : " << rng_seed << std::endl;
         std::cout << std::endl;
       }
-      thc_cfac = input.at("thc_cfac").get<int>();
     }
     MPI_Bcast(&max_it, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&threshold, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&thc_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    thc_cfac = cfac;
     ndim = 3;
   }
 
@@ -202,7 +201,7 @@ namespace InterpolatingPoints
       classify_grid_points(grid.store, current_centroids, grid_map);
       update_centroids(density.store, grid.store, new_centroids, grid_map);
       diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
-      if (i % 1 == 0 && BH.rank == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
+      if (i % 10 == 0 && BH.rank == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
       if (diff < threshold) {
         gather_data(grid.store, BH.Column);
         if (BH.rank == 0) {

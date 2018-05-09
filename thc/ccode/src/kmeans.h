@@ -13,7 +13,7 @@ namespace InterpolatingPoints
   class KMeans
   {
     public:
-      KMeans(nlohmann::json &input, ContextHandler::BlacsHandler &BH);
+      KMeans(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH);
       ~KMeans();
       void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs);
     private:
