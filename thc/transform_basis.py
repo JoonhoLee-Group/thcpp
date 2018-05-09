@@ -112,6 +112,7 @@ def init_from_chkfile(chkfile):
         try:
             kmf.mo_occ = get_kpoint_data(fh5, 'scf/mo_occ__from_list__/')
             kmf.mo_coeff = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__/')
+            kmf.mo_energy = get_kpoint_data(fh5, 'scf/mo_energy__from_list__/')
             if len(kmf.mo_occ) == 4:
                 uhf = True
             else:
@@ -186,14 +187,24 @@ def get_thc_data(thc_file):
                 norb = Luv.shape[0]
                 Luv = Luv.view(numpy.complex128).reshape(norb,norb)
                 Muv = numpy.dot(Luv, Luv.conj().T)
-            P = fh5['Hamiltonian/THC/orbitals'][:]
+            P = fh5['Hamiltonian/THC/Orbitals'][:]
             hcore = fh5['Hamiltonian/hcore'][:]
+            try:
+                Phalf = fh5['Hamiltonian/THC/HalfTransformedOccOrbitals'][:]
+                P = fh5['Hamiltonian/THC/HalfTransformedFullOrbitals'][:]
+                Luv = fh5['Hamiltonian/THC/HalfTransformedLuv'][:]
+                norb = Luv.shape[0]
+                Luv = Luv.view(numpy.complex128).reshape(norb,norb)
+                Muv = numpy.dot(Luv, Luv.conj().T)
+                Phalf = Phalf.view(numpy.complex128).reshape((Phalf.shape[0], Phalf.shape[1])).T
+            except KeyError:
+                Phalf = None
             if (len(list(fh5['Hamiltonian'].keys())) > 1):
                 # QMCPACK complex format
                 Muv = Muv.view(numpy.complex128).reshape((Muv.shape[0], Muv.shape[1]))
                 P = P.view(numpy.complex128).reshape((P.shape[0], P.shape[1])).T
                 hcore = hcore.view(numpy.complex128).reshape((hcore.shape[0], hcore.shape[1]))
-    return (Muv, P, hcore)
+    return (Muv, P, hcore, Phalf)
 
 def compute_thc_hf_energy_wfn(scf_dump, thc_data="fcidump.h5"):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
@@ -323,59 +334,73 @@ def read_mo_matrix(filename):
     orbs = [complex(t[0], t[1]) for t in tuples]
     return numpy.array(orbs)
 
-def dump_trial_wavefunction(supercell_mo_orbs, nelec, mo_basis=False, filename='wfn.dat'):
+def thc_coulomb(thc_file, wfn_file):
+    (Muv, aoR_mu, hcore, aoR_half_mu) = get_thc_data(thc_file)
+    with h5py.File(thc_file, 'r') as fh5:
+        nup = fh5['Hamiltonian/dims'][:][4]
+    nmo = aoR_mu.shape[1]
+    c = Muv.shape[0] // nmo
+    print (aoR_mu.shape, aoR_half_mu.shape, c, nup)
+    wfn = read_mo_matrix(wfn_file).reshape(nmo, nmo)
+    psi = wfn[:,:nup]
+    # half rotated G
+    if aoR_half_mu is None:
+        aoR_half_mu = numpy.copy(aoR_mu)
+        G = psi.conj().dot(scipy.linalg.inv(psi.T.dot(psi.conj())).dot(psi.T))
+    else:
+        G = scipy.linalg.inv(psi.T.dot(psi.conj())).dot(psi.T)
+    Guu = numpy.einsum('ua,ak,uk->u', aoR_half_mu.conj(), G, aoR_mu)
+    ecoul = 2*numpy.einsum('u,uv,v->', Guu, Muv, Guu)
+    return (c, ecoul)
+
+def dump_trial_wavefunction(supercell_mo_orbs, nelec, filename='wfn.dat'):
     namelist = "&FCI\n UHF = %d\n FullMO \n NCI = 1\n TYPE = matrix\n/"%(len(supercell_mo_orbs.shape)==3)
     with open(filename, 'w') as f:
         f.write(namelist+'\n')
         f.write('Coefficients: 1.0\n')
         f.write('Determinant: 1\n')
         nao = supercell_mo_orbs.shape[-1]
-        if mo_basis:
-            nao = supercell_mo_orbs.shape[-1]
-            wfn = numpy.zeros(shape=(nao,nao), dtype=supercell_mo_orbs.dtype)
-            occs = numpy.arange(nelec[0])
-            wfn[occs,occs] = 1.0
-            write_mo_matrix(f, wfn, nao)
-        elif (len(supercell_mo_orbs.shape) == 3):
+        if (len(supercell_mo_orbs.shape) == 3):
             nao = supercell_mo_orbs[0].shape[-1]
             write_mo_matrix(f, supercell_mo_orbs[0], nao)
             nao = supercell_mo_orbs[1].shape[-1]
             write_mo_matrix(f, supercell_mo_orbs[1], nao)
         else:
-            nao = supercell_mo_orbs.shape[-1]
             write_mo_matrix(f, supercell_mo_orbs, nao)
 
 def dump_orbitals(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False,
-                  mos=False, filename='orbitals.h5'):
+                  filename='orbitals.h5', half_rotate=False):
     grid = gen_grid.gen_uniform_grids(supercell)
     aoR = numint.eval_ao(supercell, grid)
-    if ortho_ao or mos:
+    if ortho_ao:
         # Translate one-body hamiltonian from non-orthogonal kpoint basis to
         # orthogonal supercell basis.
         hcore = scipy.linalg.block_diag(*hcore)
-        # Broke UHF
-        if CikJ is not None:
-            hcore = CikJ.dot(hcore).dot(CikJ.conj().T)
+        hcore = CikJ.dot(hcore).dot(CikJ.conj().T)
         if ortho_ao:
             hcore = unitary_transform(hcore, AORot)
-        # eigs2,v = scipy.linalg.eigh(hcore)
-        # test_arrays(eigs1,eigs2)
         # Translate orthogonalising matrix to supercell basis.
         aoR = numpy.dot(aoR, AORot)
+        if half_rotate:
+            nup = supercell.nelec[0]
+            aoR_half = numpy.dot(aoR, numpy.identity(AORot.shape[0])[:,:nup])
+            # for i in range(ngs):
+                # rho[i] = numpy.dot(aoR_half[i].conj(),aoR[i]).real   # not normalized
     else:
         hcore = scipy.linalg.block_diag(*hcore)
     ngs = grid.shape[0]
     rho = numpy.zeros((grid.shape[0],1))
+    for i in range(ngs):
+        rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
     coulG = (
         tools.get_coulG(supercell, k=numpy.zeros(3),
                         gs=supercell.gs)*supercell.vol/ngs**2
     )
-    for i in range(ngs):
-        rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
         ao_dset = fh5.create_dataset('aoR', data=aoR.astype(numpy.complex128))
         ao_dset.attrs["orthogonalised"] = ortho_ao
+        ao_dset = fh5.create_dataset('aoR_half', data=aoR_half.astype(numpy.complex128))
         fh5.create_dataset('density', data=rho)
         fh5.create_dataset('hcore', data=hcore)
         fh5.create_dataset('constant_energy_factors',
@@ -388,6 +413,17 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False,
 
 def unitary_transform(A, P):
     return P.conj().T.dot(A).dot(P)
+
+def supercell_molecular_orbitals_mo_basis(fock, CikJ, S):
+    # Extend to large block matrix.
+    S = scipy.linalg.block_diag(*S)
+    fock = scipy.linalg.block_diag(*fock)
+    # Transform to non-orthogonal supercell AOs
+    S = CikJ.dot(S).dot(CikJ.conj().T)
+    fock = CikJ.dot(fock).dot(CikJ.conj().T)
+    (mo_energies, AORot) = scipy.linalg.eigh(fock, S)
+    mo_orbs = numpy.identity(S.shape[0])
+    return (mo_energies, mo_orbs, AORot)
 
 def supercell_molecular_orbitals(fock, CikJ, S):
     # Extend to large block matrix.
@@ -430,7 +466,7 @@ def dump_thc_data_sc(scf_dump, ortho_ao=False, wfn_file='wfn.dat',
     dump_orbitals(cell, AORot, None, hcore, e0=e0,
                   ortho_ao=ortho_ao, mos=False, filename=orbital_file)
 
-def dump_thc_data(scf_dump, mos=False, ortho_ao=False,
+def dump_thc_data(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
                   wfn_file='wfn.dat', orbital_file='orbitals.h5'):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
@@ -439,20 +475,48 @@ def dump_thc_data(scf_dump, mos=False, ortho_ao=False,
     s1e = lib.asarray(cell.pbc_intor('cint1e_ovlp_sph', hermi=1, kpts=kpts))
     if uhf:
         (mo_energies, mo_orbs, AORot) = supercell_molecular_orbitals_uhf(fock, CikJ, s1e)
+    elif mos:
+        (mo_energies, mo_orbs, AORot) = supercell_molecular_orbitals_mo_basis(fock, CikJ, s1e)
     else:
         (mo_energies, mo_orbs, AORot) = supercell_molecular_orbitals(fock, CikJ, s1e)
-    if mos:
-        AORot = scipy.linalg.block_diag(mo_orbs)
-        print ("Using molecular orbitals.")
     # Dump wavefunction to file.
     print ("Writing trial wavefunction to %s"%wfn_file)
-    dump_trial_wavefunction(mo_orbs, supercell.nelec, mos, filename=wfn_file)
+    dump_trial_wavefunction(mo_orbs, supercell.nelec, filename=wfn_file)
     # Dump thc data.
     print ("Writing supercell orbitals to %s"%orbital_file)
     e0 = nkpts * mf.energy_nuc()
     e0 += -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
-    dump_orbitals(supercell, AORot, CikJ, hcore, e0=e0,
-                  ortho_ao=ortho_ao, mos=mos, filename=orbital_file)
+    dump_orbitals(supercell, AORot, CikJ, hcore, half_rotate=half_rotate, e0=e0,
+                  ortho_ao=ortho_ao, filename=orbital_file)
+
+def test_mos(scf_dump):
+    (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
+    hcore = scipy.linalg.block_diag(*hcore)
+    nkpts = len(kpts)
+    ncopy = num_copy(nkpts)
+    (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, ncopy)
+    nmo = hcore.shape[-1]
+    wfn = read_mo_matrix("wfn_thc.dat").reshape(nmo,nmo)
+    # assuming energy ordered.
+    (nup, ndown) = supercell.nelec
+    psi = wfn[:,:nup]
+    G = (psi.dot(psi.conj().T)).T
+    rdm = mf.make_rdm1()
+    rdm = scipy.linalg.block_diag(*rdm)
+    s1e = lib.asarray(cell.pbc_intor('cint1e_ovlp_sph', hermi=1, kpts=kpts))
+    S = scipy.linalg.block_diag(*s1e)
+    print ("ecore: ", numpy.einsum('ji,ji->', hcore.conj(), rdm),
+           (rdm.dot(S)).trace(), rdm.trace())
+    rdm = scipy.linalg.block_diag(*rdm)
+    mo_energies, mo_orbs, AORot = supercell_molecular_orbitals_mo_basis(fock, CikJ, s1e)
+    hcore_sc = CikJ.dot(hcore).dot(CikJ.conj().T)
+    # scmf = scf.RHF(supercell)
+    # h1e_sc = scmf.get_hcore()
+    # print (numpy.max(hcore_sc-h1e_sc))
+    print (mo_energies-numpy.sort(mf.mo_energy.flatten()))
+    hcore_mo = AORot.conj().T.dot(hcore_sc).dot(AORot)
+    print ("ecore mo: ", 2*numpy.einsum('ji,ji->', hcore_mo.conj(), G),
+            G.trace())
 
 def dump_wavefunction_old(scf_dump):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)

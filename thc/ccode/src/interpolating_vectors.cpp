@@ -13,98 +13,115 @@
 
 namespace InterpolatingVectors
 {
-  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
+  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, bool half_rotated, bool append)
   {
     if (BH.rank == 0) {
       input_file = input.at("orbital_file").get<std::string>();
       output_file = input.at("output_file").get<std::string>();
-      thc_cfac = input.at("thc_cfac").get<int>();
+      std::cout << "#################################################" << std::endl;
+      std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
+      std::cout << "#################################################" << std::endl;
+      std::cout << std::endl;
+      std::vector<hsize_t> dims(2);
+      H5Helper::read_dims(input_file, "aoR", dims);
+      nbasis = dims[1];
+      if (append) H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
     }
-    {
-      // (Ngrid, M)
-      DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR", BH.Root);
-      // (Nmu, M)
-      DistributedMatrix::Matrix<std::complex<double> > aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
-      DistributedMatrix::Matrix<std::complex<double> > hcore(input_file, "hcore", BH.Root);
-      if (BH.rank == 0) {
-        std::cout << "#################################################" << std::endl;
-        std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
-        std::cout << "#################################################" << std::endl;
-        std::cout << std::endl;
-        std::cout << " * Down-sampling aoR to find aoR_mu" << std::endl;
+    MPI_Bcast(&nbasis, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (half_rotated) {
+      // to distinguish Luv between half rotated and rotated case
+      prefix = "HalfTransformed";
+      setup_CZt_half(interp_indxs, BH);
+    } else {
+      setup_CZt(interp_indxs, BH);
+      prefix = "";
+    }
+    setup_CCt(interp_indxs, BH);
+    check_rank(BH);
+  }
+
+  void IVecs::setup_orbital_products(DistributedMatrix::Matrix<std::complex<double> > &Pua,
+                                     std::vector<int> &interp_indxs,
+                                     ContextHandler::BlacsHandler &BH,
+                                     std::string aos, bool write,
+                                     std::string prfx="")
+  {
+    // (Ngrid, M)
+    DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, aos, BH.Root);
+    // (Nmu, M)
+    DistributedMatrix::Matrix<std::complex<double> > aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
+    if (BH.rank == 0) {
+      std::cout << " * Down-sampling " << aos << " to find aoR_mu" << std::endl;
+      MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
+      // QMCPACK expects the transpose of this matrix and we need to transpose the data
+      // to construct CZt, we'll need to flip the axes however.
+      MatrixOperations::transpose(aoR_mu);
+      if (write) {
         std::cout << " * Writing aoR_mu to file" << std::endl;
-        MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
-        H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
-        H5::Group base = file.createGroup("/Hamiltonian");
-        // QMCPACK expects the transpose of this matrix and we need to transpose the data
-        // to construct CZt, we'll need to flip the axes however.
-        MatrixOperations::transpose(aoR_mu);
-        aoR_mu.dump_data(file, "/Hamiltonian/THC", "orbitals");
-        // Read in and dump core hamiltonian
-        hcore.dump_data(file, "/Hamiltonian", "hcore");
-        std::vector<hsize_t> dims(2);
-        H5::H5File fin = H5::H5File(input_file.c_str(), H5F_ACC_RDONLY);
-        // Number of electrons (nup, ndown).
-        std::vector<int> num_elec(2);
-        H5Helper::read_matrix(fin, "num_electrons", num_elec, dims);
-        int nup = num_elec[0], ndown = num_elec[1];
-        // Constant energy factors (nuclear + Madelung).
-        std::vector<double> energy_constants(2);
-        H5Helper::read_matrix(fin, "constant_energy_factors", energy_constants, dims);
-        dims.resize(1);
-        dims[0] = 1;
-        H5Helper::write(file, "/Hamiltonian/Energies", energy_constants, dims);
+        H5::Exception::dontPrint();
+        H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+        try {
+          H5::Group base = file.createGroup("/Hamiltonian");
+        } catch (H5::FileIException) {
+          H5::Group base = file.openGroup("/Hamiltonian");
+        }
+        aoR_mu.dump_data(file, "/Hamiltonian/THC", prfx+"Orbitals");
         // Write interpolating indices
+        std::vector<hsize_t> dims(1);
         dims[0] = interp_indxs.size();
-        H5Helper::write(file, "/Hamiltonian/THC/interp_indx", interp_indxs, dims);
-        // Other QMCPACK specific metadata.
-        std::vector<int> occups(nup+ndown);
-        MatrixOperations::zero(occups);
-        dims[0] = occups.size();
-        H5Helper::write(file, "/Hamiltonian/occups", occups, dims);
-        int nbasis = aoR.ncols;
-        std::vector<int> qmcpack_dims = {-1, 0, 0, nbasis, nup, ndown, 0, 0};
-        dims[0] = qmcpack_dims.size();
-        H5Helper::write(file, "/Hamiltonian/dims", qmcpack_dims, dims);
-        int nmu = thc_cfac * nbasis;
-        std::vector<int> thc_dims = {nbasis, nmu};
-        dims[0] = 2;
-        H5Helper::write(file, "/Hamiltonian/THC/dims", thc_dims, dims);
-      } else {
-        MatrixOperations::swap_dims(aoR_mu);
+        std::cout << " * Writing indices of interpolating points to file" << std::endl;
+        H5Helper::write(file, "/Hamiltonian/THC/"+prfx+"InterpIndx", interp_indxs, dims);
       }
-      // First need to modify matrices to fortran format.
-      // CZt = aoR_mu aoR*^T,
-      // aoR is in C order, so already transposed from Fortran's perspective, just need to
-      // alter nrows and ncols and conjugate its entries.
-      int tmp = aoR.nrows;
-      aoR.nrows = aoR.ncols;
-      aoR.ncols = tmp;
-      aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
-      // Actually do need to transpose aoR_mu's data this was done above when printing to
-      // file, need revert the shape however.
+    } else {
       MatrixOperations::swap_dims(aoR_mu);
-      // But shape (Nmu, M) should stay the same.
-      // Finally construct CZt.
-      // aoR^{*}^T distributed block cyclically, in row major format.
-      MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
-      for (int i = 0; i < aoR.store.size(); i++) aoR.store[i] = std::conj(aoR.store[i]);
-      // aoR_mu distributed block cyclically, in row major format.
-      MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
-      CZt.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
-      if (BH.rank == 0) {
-        std::cout << " * Constructing CZt matrix" << std::endl;
-        std::cout << " * Matrix Shape: (" << CZt.nrows << ", " << CZt.ncols << ")" << std::endl;
-        double memory = UTILS::get_memory(CZt.store);
-        std::cout << "  * Local memory usage (on root processor): " << memory << " GB" << std::endl;
-        std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
-      }
-      MatrixOperations::product(aoR_mu, aoR, CZt);
-    } // Memory from aoR and aoR_mu should be freed.
-    // Hadamard products, M M*.
+    }
+    // First need to modify matrices to fortran format.
+    // CZt = (aoR_mu^* aoR^T)*(aoR_mu^* aoR^T)^*,
+    // aoR is in C order, so already transposed from Fortran's perspective, just need to
+    // alter nrows and ncols and conjugate its entries.
+    MatrixOperations::swap_dims(aoR);
+    aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
+    // Actually do need to transpose aoR_mu's data this was done above when printing to
+    // file, need revert the shape however.
+    MatrixOperations::swap_dims(aoR_mu);
+    // But shape (Nmu, M) should stay the same.
+    // Finally construct CZt.
+    // aoR^{*}^T distributed block cyclically, in row major format.
+    MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
+    for (int i = 0; i < aoR.store.size(); i++) aoR.store[i] = std::conj(aoR.store[i]);
+    // aoR_mu distributed block cyclically, in row major format.
+    MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
+    Pua.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
+    if (BH.rank == 0) {
+      std::cout << " * Constructing CZt matrix" << std::endl;
+      std::cout << " * Matrix Shape: (" << CZt.nrows << ", " << CZt.ncols << ")" << std::endl;
+      double memory = UTILS::get_memory(CZt.store);
+      std::cout << "  * Local memory usage (on root processor): " << memory << " GB" << std::endl;
+      std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
+    }
+    MatrixOperations::product(aoR_mu, aoR, Pua);
+  }
+
+  void IVecs::setup_CZt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
+  {
+    setup_orbital_products(CZt, interp_indxs, BH, "aoR", true);
     for (int i = 0; i < CZt.store.size(); i++) {
       CZt.store[i] = CZt.store[i]*std::conj(CZt.store[i]);
     }
+  }
+
+  void IVecs::setup_CZt_half(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
+  {
+    setup_orbital_products(CZt, interp_indxs, BH, "aoR", true, "HalfTransformedFull");
+    DistributedMatrix::Matrix<std::complex<double> > Pua;
+    setup_orbital_products(Pua, interp_indxs, BH, "aoR_half", true, "HalfTransformedOcc");
+    for (int i = 0; i < CZt.store.size(); i++) {
+      CZt.store[i] = CZt.store[i]*std::conj(Pua.store[i]);
+    }
+  }
+
+  void IVecs::setup_CCt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
+  {
     // Need to select columns of CZt to construct CCt.
     // First redistribute CZt data column cyclically to avoid figuring out how to index
     // columns in scalapack.
@@ -113,7 +130,8 @@ namespace InterpolatingVectors
     }
     // Number of columns of CZt each processor will get i.e., [rank*ncols_per_block,(rank+1)*ncols_per_block]
     int ncols_per_block = CZt.ncols / BH.nprocs;
-    MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, ncols_per_block);
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true,
+                                   CZt.nrows, ncols_per_block);
     // Next figure out which columns to select on each processor.
     // We extend selected index array to be the same size as the CZt.ncols, so that we can
     // redistribute this array to align with CZt and don't need to figure out any indexing.
@@ -183,26 +201,64 @@ namespace InterpolatingVectors
       std::cout << " * Redistributing CCt block cyclically." << std::endl;
     }
     MatrixOperations::redistribute(CCt, BH.Root, BH.Square, true, 64, 64);
-    // Check rank deficiency.
-    {
-      std::vector<std::complex<double> > tmp(CCt.store);
-      if (BH.rank == 0) std::cout << " * Checking rank of CCt matrix." << std::endl;
-      int rank = MatrixOperations::rank(CCt, BH.Square);
-      if (BH.rank == 0) {
-        if (rank < CCt.nrows) {
-          std::cout << " * WARNING: CCt matrix is rank deficient. Rank = " << rank << std::endl;
-          std::cout << std::endl;
-        } else {
-          std::cout << " * CCt matrix has full rank : " << rank << std::endl;
-          std::cout << std::endl;
-        }
-      }
-      // SVD destroys data in CCt so copy it back.
-      std::copy(tmp.begin(), tmp.end(), CCt.store.data());
-    }
   }
 
-  void IVecs::dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG, DistributedMatrix::Matrix<std::complex<double> > &IVMG,
+  void IVecs::check_rank(ContextHandler::BlacsHandler &BH)
+  {
+    std::vector<std::complex<double> > tmp(CCt.store);
+    if (BH.rank == 0) std::cout << " * Checking rank of CCt matrix." << std::endl;
+    int rank = MatrixOperations::rank(CCt, BH.Square);
+    if (BH.rank == 0) {
+      if (rank < CCt.nrows) {
+        std::cout << " * WARNING: CCt matrix is rank deficient. Rank = " << rank << std::endl;
+        std::cout << std::endl;
+      } else {
+        std::cout << " * CCt matrix has full rank : " << rank << std::endl;
+        std::cout << std::endl;
+      }
+    }
+    // SVD destroys data in CCt so copy it back.
+    std::copy(tmp.begin(), tmp.end(), CCt.store.data());
+  }
+
+  void IVecs::dump_qmcpack_data(int thc_cfac, int thc_half_cfac,
+                                ContextHandler::BlacsHandler &BH)
+  {
+    H5::Exception::dontPrint();
+    H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+    H5::Group base = file.openGroup("/Hamiltonian");
+    // Read in and dump core hamiltonian
+    DistributedMatrix::Matrix<std::complex<double> > hcore(input_file, "hcore", BH.Root);
+    hcore.dump_data(file, "/Hamiltonian", "hcore");
+    std::vector<hsize_t> dims(2);
+    H5::H5File fin = H5::H5File(input_file.c_str(), H5F_ACC_RDONLY);
+    // Number of electrons (nup, ndown).
+    std::vector<int> num_elec(2);
+    H5Helper::read_matrix(fin, "num_electrons", num_elec, dims);
+    int nup = num_elec[0], ndown = num_elec[1];
+    // Constant energy factors (nuclear + Madelung).
+    std::vector<double> energy_constants(2);
+    H5Helper::read_matrix(fin, "constant_energy_factors", energy_constants, dims);
+    dims.resize(1);
+    dims[0] = 1;
+    H5Helper::write(file, "/Hamiltonian/Energies", energy_constants, dims);
+    // Other QMCPACK specific metadata.
+    std::vector<int> occups(nup+ndown);
+    MatrixOperations::zero(occups);
+    dims[0] = occups.size();
+    H5Helper::write(file, "/Hamiltonian/occups", occups, dims);
+    std::vector<int> qmcpack_dims = {-1, 0, 0, nbasis, nup, ndown, 0, 0};
+    dims[0] = qmcpack_dims.size();
+    H5Helper::write(file, "/Hamiltonian/dims", qmcpack_dims, dims);
+    int nmu = thc_cfac * nbasis;
+    int nmu_half = thc_half_cfac * nbasis;
+    std::vector<int> thc_dims = {nbasis, nmu, nmu_half};
+    dims[0] = 3;
+    H5Helper::write(file, "/Hamiltonian/THC/dims", thc_dims, dims);
+  }
+
+  void IVecs::dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG,
+                            DistributedMatrix::Matrix<std::complex<double> > &IVMG,
                             ContextHandler::BlacsHandler &BH)
   {
     // Read FFT of coulomb kernel.
@@ -220,10 +276,6 @@ namespace InterpolatingVectors
         IVMG.store[i+j*IVMG.local_nrows] *= sqrt(coulG.store[i]);
       }
     }
-    //std::complex<double> ls = MatrixOperations::vector_sum(IVG.store);
-    //std::complex<double> gs = 0.0;
-    //MPI_Reduce(&ls, &gs, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
-    //if (BH.rank == 0) std::cout << "Scaled COUL: " << gs << std::endl;
     // Redistributed to block cyclic.
     // magic numbers..
     if (BH.rank == 0) std::cout << " * Redistributing reciprocal space interpolating vectors to block cyclic distribution." << std::endl;
@@ -269,7 +321,7 @@ namespace InterpolatingVectors
       }
       // Transform back to C order.
       MatrixOperations::transpose(Luv, false);
-      Luv.dump_data(file, "/Hamiltonian/THC", "Luv");
+      Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
     }
   }
 
@@ -309,7 +361,7 @@ namespace InterpolatingVectors
       // Data needs to be complex.
       //std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZt.store.data()+i*offset, ngs);
       if (BH.rank == 0) {
-        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZt.local_ncols << " " << i*offset << std::endl;
+        if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZt.local_ncols << std::endl;
       }
       // there is a routine for many FFTs run into integer overflow here.
       p = fftw_plan_dft_3d(ng, ng, ng,
