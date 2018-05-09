@@ -95,7 +95,6 @@ inline void parse_simple_opts(nlohmann::json &input, int rank, int &thc_cfac, in
   MPI_Bcast(&thc_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&thc_half_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&half_rotated, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  std::cout << "INIT: " << thc_cfac << " " << thc_half_cfac << " " << half_rotated << std::endl;
 }
 
 }

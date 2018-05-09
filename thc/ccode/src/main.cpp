@@ -38,12 +38,10 @@ int main(int argc, char** argv)
   int thc_cfac, thc_half_cfac;
   bool half_rotated = false;
   UTILS::parse_simple_opts(input_data, rank, thc_cfac, thc_half_cfac, half_rotated);
-  std::cout << thc_cfac << " "  << thc_half_cfac << " " << half_rotated << std::endl;
   // 1. Determine interpolating points using Veronoi tesselation / KMeans.
   std::vector<int> interp_indxs;
   {
     InterpolatingPoints::KMeans KMeansSolver(input_data, thc_cfac, BH);
-    std::cout << thc_cfac << std::endl;
     KMeansSolver.kernel(BH, interp_indxs);
   }
   // 2. Determine interpolating vectors via least squares.
