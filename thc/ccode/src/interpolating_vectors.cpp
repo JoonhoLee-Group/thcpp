@@ -227,11 +227,12 @@ namespace InterpolatingVectors
     H5::Exception::dontPrint();
     H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
     H5::Group base = file.openGroup("/Hamiltonian");
-    // Read in and dump core hamiltonian
-    DistributedMatrix::Matrix<std::complex<double> > hcore(input_file, "hcore", BH.Root);
-    hcore.dump_data(file, "/Hamiltonian", "hcore");
-    std::vector<hsize_t> dims(2);
     H5::H5File fin = H5::H5File(input_file.c_str(), H5F_ACC_RDONLY);
+    // Read in and dump core hamiltonian
+    std::vector<std::complex<double> > hcore;
+    std::vector<hsize_t> dims(2);
+    H5Helper::read_matrix(fin, "hcore", hcore, dims);
+    H5Helper::write(file, "/Hamiltonian/hcore", hcore, dims);
     // Number of electrons (nup, ndown).
     std::vector<int> num_elec(2);
     H5Helper::read_matrix(fin, "num_electrons", num_elec, dims);
