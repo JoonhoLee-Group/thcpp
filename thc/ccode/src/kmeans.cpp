@@ -154,6 +154,16 @@ namespace InterpolatingPoints
     }
   }
 
+  double KMeans::percentage_change(std::vector<int> &new_grid_map, std::vector<int> &old_grid_map)
+  {
+    int num_changed = 0, total_changed = 0;
+    for (int i = 0; i < new_grid_map.size(); i++) {
+      if (new_grid_map[i] != old_grid_map[i]) num_changed++;
+    }
+    MPI_Allreduce(&num_changed, &total_changed, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    return 100 * ((double)total_changed) / num_grid_pts;
+  }
+
   void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
   {
     // real space grid.
@@ -196,12 +206,16 @@ namespace InterpolatingPoints
     scatter_data(grid.store, grid.nrows, ndim, BH.Column);
     scatter_data(density.store, grid.nrows, 1, BH.Column);
     // Maps grid point to centroid.
-    std::vector<int> grid_map(density.store.size());
+    std::vector<int> grid_map(density.store.size()), old_grid_map(density.store.size());
+    classify_grid_points(grid.store, current_centroids, grid_map);
+    std::copy(grid_map.begin(), grid_map.end(), old_grid_map.data());
+    if (BH.rank == 0) std::cout << "  *   Step        Error     % change" << std::endl;
     for (int i = 0; i < max_it; i++) {
       classify_grid_points(grid.store, current_centroids, grid_map);
       update_centroids(density.store, grid.store, new_centroids, grid_map);
       diff = MatrixOperations::normed_difference(new_centroids, current_centroids);
-      if (i % 10 == 0 && BH.rank == 0) std::cout << "  * Step: " << i << " Error: " << diff << std::endl;
+      double pct = percentage_change(grid_map, old_grid_map);
+      if (i % 10 == 0 && BH.rank == 0) std::cout << std::setw(10) << i << "  " << std::setprecision(5) << std::scientific << diff << "  " << pct << std::endl;
       if (diff < threshold) {
         gather_data(grid.store, BH.Column);
         if (BH.rank == 0) {
@@ -210,6 +224,7 @@ namespace InterpolatingPoints
         break;
       } else {
         new_centroids.swap(current_centroids);
+        old_grid_map.swap(grid_map);
       }
     }
     if (diff > threshold) {
