@@ -302,6 +302,11 @@ namespace InterpolatingVectors
       if (ierr != 0) {
         std::cout << " * Parallel cholesky failed." << std::endl;
         std::cout << " * Error code: " << ierr << std::endl;
+        if (ierr < 0) {
+          std::cout << "  * The leading minor of order " << ierr << " is not positive devinite." << std::endl;
+        } else {
+          std::cout << "  * Illegal value in matrix." << std::endl;
+        }
       }
     }
 
