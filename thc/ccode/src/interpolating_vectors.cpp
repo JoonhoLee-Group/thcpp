@@ -297,27 +297,23 @@ namespace InterpolatingVectors
     if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
     double t_chol = clock();
     int ierr = MatrixOperations::cholesky(Luv);
-    if (BH.rank == 0) {
-      std::cout << "  * Time to perform cholesky decomposition on Muv: " << (clock()-t_chol) / CLOCKS_PER_SEC << " seconds." << std::endl;
-      if (ierr != 0) {
-        std::cout << " * Parallel cholesky failed." << std::endl;
-        std::cout << " * Error code: " << ierr << std::endl;
-        if (ierr > 0) {
-          std::cout << "  * The leading minor of order " << ierr << " is not positive devinite." << std::endl;
-        } else {
-          std::cout << "  * Illegal value in matrix." << std::endl;
-        }
-      }
-    }
-
-    // Dump matrices to file.
     MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
     MatrixOperations::redistribute(Luv, BH.Square, BH.Root);
     if (BH.rank == 0) {
-      std::cout << " * Dumping THC data to: " << output_file << "." << std::endl;
-      std::cout << std::endl;
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       H5::Group base = file.openGroup("/Hamiltonian");
+      std::cout << "  * Time to perform cholesky decomposition on Muv: " << (clock()-t_chol) / CLOCKS_PER_SEC << " seconds." << std::endl;
+      std::cout << " * Dumping THC data to: " << output_file << "." << std::endl;
+      std::cout << std::endl;
+      if (ierr != 0) {
+        std::cout << "  * WARNING: Cholesky decomposition failed!" << std::endl;
+        std::cout << "  * SCALAPACK Error code: " << ierr << std::endl;
+        if (ierr > 0) {
+          std::cout << "   * The leading minor of order " << ierr << " is not positive devinite." << std::endl;
+        } else {
+          std::cout << "   * Illegal value in matrix." << std::endl;
+        }
+      }
       // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
       for (int i = 0; i < Luv.nrows; i++) {
         for (int j = (i+1); j < Luv.ncols; j++) {
@@ -326,6 +322,8 @@ namespace InterpolatingVectors
         }
       }
       // Transform back to C order.
+      MatrixOperations::transpose(Muv, false);
+      Muv.dump_data(file, "Hamiltonian/THC", prefix+"Muv");
       MatrixOperations::transpose(Luv, false);
       Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
     }
