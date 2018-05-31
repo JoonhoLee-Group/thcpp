@@ -19,13 +19,18 @@ namespace InterpolatingVectors
     private:
       void fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG,
                        DistributedMatrix::Matrix<std::complex<double> > &IVMG);
-      void dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG, DistributedMatrix::Matrix<std::complex<double> > &IVMG,
+      void construct_muv(DistributedMatrix::Matrix<std::complex<double> > &IVG,
+                         DistributedMatrix::Matrix<std::complex<double> > &IVMG,
+                         DistributedMatrix::Matrix<std::complex<double> > &Muv,
+                         ContextHandler::BlacsHandler &BH);
+      void dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &Muv,
                          ContextHandler::BlacsHandler &BH);
       void setup_CZt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH);
       void setup_CZt_half(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH);
       void setup_CCt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH);
       void check_rank(ContextHandler::BlacsHandler &BH);
-      void setup_orbital_products(DistributedMatrix::Matrix<std::complex<double> > &Pua, std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH, std::string aos, bool write, std::string prfx);
+      void setup_orbital_products(DistributedMatrix::Matrix<std::complex<double> > &Pua, std::vector<int> &interp_indxs,
+                                  ContextHandler::BlacsHandler &BH, std::string aos, bool write, std::string prfx);
       DistributedMatrix::Matrix<std::complex<double> > CCt, CZt;
       std::string input_file, output_file;
       int thc_cfac, thc_half_cfac;

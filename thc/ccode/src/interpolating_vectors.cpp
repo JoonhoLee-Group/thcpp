@@ -13,7 +13,7 @@
 
 namespace InterpolatingVectors
 {
-  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, bool half_rotated, bool append)
+  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, bool rotate, bool append)
   {
     if (BH.rank == 0) {
       input_file = input.at("orbital_file").get<std::string>();
@@ -28,13 +28,15 @@ namespace InterpolatingVectors
       if (append) H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
     }
     MPI_Bcast(&nbasis, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    if (half_rotated) {
+    if (rotate) {
       // to distinguish Luv between half rotated and rotated case
       prefix = "HalfTransformed";
       setup_CZt_half(interp_indxs, BH);
+      half_rotate = true;
     } else {
       setup_CZt(interp_indxs, BH);
       prefix = "";
+      half_rotate = false;
     }
     setup_CCt(interp_indxs, BH);
     check_rank(BH);
@@ -258,8 +260,9 @@ namespace InterpolatingVectors
     H5Helper::write(file, "/Hamiltonian/THC/dims", thc_dims, dims);
   }
 
-  void IVecs::dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &IVG,
+  void IVecs::construct_muv(DistributedMatrix::Matrix<std::complex<double> > &IVG,
                             DistributedMatrix::Matrix<std::complex<double> > &IVMG,
+                            DistributedMatrix::Matrix<std::complex<double> > &Muv,
                             ContextHandler::BlacsHandler &BH)
   {
     // Read FFT of coulomb kernel.
@@ -268,64 +271,83 @@ namespace InterpolatingVectors
     if (BH.rank != 0) coulG.store.resize(coulG.nrows*coulG.ncols);
     MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Distribute FFT of coulomb kernel to all processors.
-    std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
-    MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
+    //std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
+    //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
     // Recall IVGs store is in fortran order so transposed for us.
     for (int j = 0; j < IVG.local_ncols; j++) {
       for (int i = 0; i < IVG.local_nrows; i++) {
         IVG.store[i+j*IVG.local_nrows] *= sqrt(coulG.store[i]);
-        IVMG.store[i+j*IVMG.local_nrows] *= sqrt(coulG.store[i]);
+        if (half_rotate) IVMG.store[i+j*IVMG.local_nrows] *= sqrt(coulG.store[i]);
       }
     }
     // Redistributed to block cyclic.
     // magic numbers..
     if (BH.rank == 0) std::cout << " * Redistributing reciprocal space interpolating vectors to block cyclic distribution." << std::endl;
     MatrixOperations::redistribute(IVG, BH.Column, BH.Square, true, 64, 64);
-    MatrixOperations::redistribute(IVMG, BH.Column, BH.Square, true, 64, 64);
+    if (half_rotate) MatrixOperations::redistribute(IVMG, BH.Column, BH.Square, true, 64, 64);
     // (nmu, ngrid)
     DistributedMatrix::Matrix<std::complex<double> > IVMGT(IVG.ncols, IVG.nrows, BH.Square);
-    DistributedMatrix::Matrix<std::complex<double> > Muv(IVG.ncols, IVG.ncols, BH.Square);
     // overload product for complex data type.
-    MatrixOperations::transpose(IVMG, IVMGT);
+    if (half_rotate) {
+      MatrixOperations::transpose(IVMG, IVMGT);
+    } else {
+      MatrixOperations::transpose(IVG, IVMGT);
+      for (int i = 0; i < IVMG.store.size(); i++) {
+        IVMGT.store[i] = std::conj(IVMGT.store[i]);
+      }
+      if (BH.rank == 0) std::cout << "MG: " << IVMGT.store.size() << std::endl;
+    }
     // numpy.dot(IVG, IVG.conj().T)
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
     double t_muv = clock();
     MatrixOperations::product(IVMGT, IVG, Muv);
     if (BH.rank == 0) std::cout << "  * Time to construct Muv: " << (clock()-t_muv) / CLOCKS_PER_SEC << " seconds." << std::endl;
+  }
 
-    DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
-    if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
-    double t_chol = clock();
-    int ierr = MatrixOperations::cholesky(Luv);
-    MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
-    MatrixOperations::redistribute(Luv, BH.Square, BH.Root);
-    if (BH.rank == 0) {
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      H5::Group base = file.openGroup("/Hamiltonian");
-      std::cout << "  * Time to perform cholesky decomposition on Muv: " << (clock()-t_chol) / CLOCKS_PER_SEC << " seconds." << std::endl;
-      std::cout << " * Dumping THC data to: " << output_file << "." << std::endl;
-      std::cout << std::endl;
-      if (ierr != 0) {
-        std::cout << "  * WARNING: Cholesky decomposition failed!" << std::endl;
-        std::cout << "  * SCALAPACK Error code: " << ierr << std::endl;
-        if (ierr > 0) {
-          std::cout << "   * The leading minor of order " << ierr << " is not positive devinite." << std::endl;
-        } else {
-          std::cout << "   * Illegal value in matrix." << std::endl;
+  void IVecs::dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &Muv,
+                            ContextHandler::BlacsHandler &BH)
+  {
+    if (!half_rotate) {
+      DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
+      if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
+      double t_chol = clock();
+      int ierr = MatrixOperations::cholesky(Luv);
+      MatrixOperations::redistribute(Luv, BH.Square, BH.Root);
+      if (BH.rank == 0) {
+        H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+        H5::Group base = file.openGroup("/Hamiltonian");
+        std::cout << " * Time to perform cholesky decomposition on Muv: " << (clock()-t_chol) / CLOCKS_PER_SEC << " seconds." << std::endl;
+        std::cout << " * Dumping Luv to: " << output_file << "." << std::endl;
+        if (ierr != 0) {
+          std::cout << "  * WARNING: Cholesky decomposition failed!" << std::endl;
+          std::cout << "  * SCALAPACK Error code: " << ierr << std::endl;
+          if (ierr > 0) {
+            std::cout << "   * The leading minor of order " << ierr << " is not positive devinite." << std::endl;
+          } else {
+            std::cout << "   * Illegal value in matrix." << std::endl;
+          }
         }
-      }
-      // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
-      for (int i = 0; i < Luv.nrows; i++) {
-        for (int j = (i+1); j < Luv.ncols; j++) {
-          // Luv is in fortran order.
-          Luv.store[i+j*Luv.nrows] = 0.0;
+        std::cout << std::endl;
+        // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
+        for (int i = 0; i < Luv.nrows; i++) {
+          for (int j = (i+1); j < Luv.ncols; j++) {
+            // Luv is in fortran order.
+            Luv.store[i+j*Luv.nrows] = 0.0;
+          }
         }
+        // Transform back to C order.
+        MatrixOperations::transpose(Luv, false);
+        Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
       }
-      // Transform back to C order.
-      MatrixOperations::transpose(Muv, false);
-      Muv.dump_data(file, "Hamiltonian/THC", prefix+"Muv");
-      MatrixOperations::transpose(Luv, false);
-      Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
+    } else {
+      MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
+      if (BH.rank == 0) {
+        H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+        H5::Group base = file.openGroup("/Hamiltonian");
+        std::cout << " * Dumping half transformed Muv data to: " << output_file << "." << std::endl;
+        MatrixOperations::transpose(Muv, false);
+        Muv.dump_data(file, "Hamiltonian/THC", prefix+"Muv");
+      }
     }
   }
 
@@ -363,24 +385,23 @@ namespace InterpolatingVectors
     int offset = ngs;
     for (int i = 0; i < CZt.local_ncols; i++) {
       // Data needs to be complex.
-      //std::vector<std::complex<double> > complex_data = UTILS::convert_double_to_complex(CZt.store.data()+i*offset, ngs);
       if (BH.rank == 0) {
         if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZt.local_ncols << std::endl;
       }
-      // there is a routine for many FFTs run into integer overflow here.
       p = fftw_plan_dft_3d(ng, ng, ng,
                            reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
                            reinterpret_cast<fftw_complex*>(IVG.store.data()+i*offset),
                            FFTW_FORWARD, FFTW_ESTIMATE);
       fftw_execute(p);
       fftw_destroy_plan(p);
-      // there is a routine for many FFTs run into integer overflow here.
-      p = fftw_plan_dft_3d(ng, ng, ng,
-                           reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
-                           reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*offset),
-                           FFTW_BACKWARD, FFTW_ESTIMATE);
-      fftw_execute(p);
-      fftw_destroy_plan(p);
+      if (half_rotate) {
+        p = fftw_plan_dft_3d(ng, ng, ng,
+                             reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
+                             reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*offset),
+                             FFTW_BACKWARD, FFTW_ESTIMATE);
+        fftw_execute(p);
+        fftw_destroy_plan(p);
+      }
     }
   }
 
@@ -413,20 +434,26 @@ namespace InterpolatingVectors
       std::cout << " * Performing FFT on interpolating vectors." << std::endl;
       std::cout << std::endl;
     }
-    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1), IVMG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
+    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
+    int nrows, ncols;
+    if (half_rotate) {
+      nrows = CZt.ncols;
+      ncols = CZt.nrows;
+    } else {
+      // Don't allocate the extra memory
+      nrows = 1;
+      ncols = 1;
+    }
     double tfft = clock();
+    DistributedMatrix::Matrix<std::complex<double> > IVMG(nrows, ncols, BH.Column, CZt.ncols, 1);
     fft_vectors(BH, IVG, IVMG);
     tfft = clock() - tfft;
     if (BH.rank == 0) {
       std::cout << " * Time to FFT interpolating vectors : " << tfft / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
     }
-    double tmuv= clock();
-    dump_thc_data(IVG, IVMG, BH);
-    tmuv = clock() - tmuv;
-    if (BH.rank == 0) {
-      std::cout << " * Time to construct Muv : " << tmuv / CLOCKS_PER_SEC << " seconds" << std::endl;
-      std::cout << std::endl;
-    }
+    DistributedMatrix::Matrix<std::complex<double> > Muv(IVG.ncols, IVG.ncols, BH.Square);
+    construct_muv(IVG, IVMG, Muv, BH);
+    dump_thc_data(Muv, BH);
   }
 }
