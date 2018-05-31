@@ -25,6 +25,7 @@ namespace InterpolatingPoints
       void guess_initial_centroids(std::vector<double> &grid, std::vector<double> &centroids);
       void scatter_data(std::vector<double> &grid, int num_points, int ndim, ContextHandler::BlacsGrid &BG);
       void gather_data(std::vector<double> &grid, ContextHandler::BlacsGrid &BG);
+      double percentage_change(std::vector<int> &new_grid_map, std::vector<int> &old_grid_map);
       // Variables
       std::string filename;
       int max_it;
