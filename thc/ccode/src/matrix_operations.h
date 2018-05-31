@@ -193,7 +193,7 @@ inline int cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
 }
 
 template <typename T>
-inline void transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
+inline void local_transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
 {
   std::vector<T> tmp(A.ncols*A.nrows);
   if (row_major) {
