@@ -57,7 +57,7 @@ namespace InterpolatingVectors
       MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
       // QMCPACK expects the transpose of this matrix and we need to transpose the data
       // to construct CZt, we'll need to flip the axes however.
-      MatrixOperations::transpose(aoR_mu);
+      MatrixOperations::local_transpose(aoR_mu);
       if (write) {
         std::cout << " * Writing aoR_mu to file" << std::endl;
         H5::Exception::dontPrint();
@@ -336,8 +336,10 @@ namespace InterpolatingVectors
           }
         }
         // Transform back to C order.
-        MatrixOperations::transpose(Luv, false);
+        MatrixOperations::local_transpose(Luv, false);
         Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
+        MatrixOperations::local_transpose(Muv, false);
+        Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Muv");
       }
     } else {
       MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
@@ -345,8 +347,9 @@ namespace InterpolatingVectors
         H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
         H5::Group base = file.openGroup("/Hamiltonian");
         std::cout << " * Dumping half transformed Muv data to: " << output_file << "." << std::endl;
-        MatrixOperations::transpose(Muv, false);
-        Muv.dump_data(file, "Hamiltonian/THC", prefix+"Muv");
+        MatrixOperations::local_transpose(Muv, false);
+        Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Muv");
+        Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
       }
     }
   }
