@@ -320,7 +320,7 @@ namespace InterpolatingVectors
           std::cout << "  * WARNING: Cholesky decomposition failed!" << std::endl;
           std::cout << "  * SCALAPACK Error code: " << ierr << std::endl;
           if (ierr > 0) {
-            std::cout << "   * The leading minor of order " << ierr << " is not positive devinite." << std::endl;
+            std::cout << "   * The leading minor of order " << ierr << " is not positive definite." << std::endl;
           } else {
             std::cout << "   * Illegal value in matrix." << std::endl;
           }
