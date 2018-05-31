@@ -289,13 +289,11 @@ namespace InterpolatingVectors
     DistributedMatrix::Matrix<std::complex<double> > IVMGT(IVG.ncols, IVG.nrows, BH.Square);
     // overload product for complex data type.
     if (half_rotate) {
+      // zeta_mu(-G)
       MatrixOperations::transpose(IVMG, IVMGT);
     } else {
-      MatrixOperations::transpose(IVG, IVMGT);
-      for (int i = 0; i < IVMG.store.size(); i++) {
-        IVMGT.store[i] = std::conj(IVMGT.store[i]);
-      }
-      if (BH.rank == 0) std::cout << "MG: " << IVMGT.store.size() << std::endl;
+      // zeta^{*}_mu(G)
+      MatrixOperations::transpose(IVG, IVMGT, true);
     }
     // numpy.dot(IVG, IVG.conj().T)
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
