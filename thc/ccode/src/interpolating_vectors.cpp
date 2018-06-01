@@ -340,14 +340,38 @@ namespace InterpolatingVectors
         Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Muv");
       }
     } else {
+      DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
+      if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
+      double t_chol = clock();
+      int ierr = MatrixOperations::cholesky(Luv);
+      MatrixOperations::redistribute(Luv, BH.Square, BH.Root);
       MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
       if (BH.rank == 0) {
         H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
         H5::Group base = file.openGroup("/Hamiltonian");
         std::cout << " * Dumping half transformed Muv data to: " << output_file << "." << std::endl;
+        if (ierr != 0) {
+          std::cout << "  * WARNING: Cholesky decomposition failed!" << std::endl;
+          std::cout << "  * SCALAPACK Error code: " << ierr << std::endl;
+          if (ierr > 0) {
+            std::cout << "   * The leading minor of order " << ierr << " is not positive definite." << std::endl;
+          } else {
+            std::cout << "   * Illegal value in matrix." << std::endl;
+          }
+        }
+        std::cout << std::endl;
+        // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
+        for (int i = 0; i < Luv.nrows; i++) {
+          for (int j = (i+1); j < Luv.ncols; j++) {
+            // Luv is in fortran order.
+            Luv.store[i+j*Luv.nrows] = 0.0;
+          }
+        }
+        // Transform back to C order.
+        MatrixOperations::local_transpose(Luv, false);
+        Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
         MatrixOperations::local_transpose(Muv, false);
         Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Muv");
-        Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
       }
     }
   }
