@@ -336,8 +336,6 @@ namespace InterpolatingVectors
         // Transform back to C order.
         MatrixOperations::local_transpose(Luv, false);
         Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
-        MatrixOperations::local_transpose(Muv, false);
-        Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Muv");
       }
     } else {
       MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
