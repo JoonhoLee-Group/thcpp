@@ -193,7 +193,7 @@ inline int cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
 }
 
 template <typename T>
-inline void transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
+inline void local_transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
 {
   std::vector<T> tmp(A.ncols*A.nrows);
   if (row_major) {
@@ -232,9 +232,14 @@ inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::M
            AT.store.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc.data());
 }
 
-inline void transpose(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &AT)
+inline void transpose(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &AT, bool hermi=false)
 {
-  char trans = 'T';
+  char trans;
+  if (hermi) {
+    trans = 'C';
+  } else {
+    trans = 'T';
+  }
   std::complex<double> one = 1.0, zero = 0.0;
   pzgeadd_(&trans, &A.ncols, &A.nrows,
            &one,
