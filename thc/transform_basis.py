@@ -102,7 +102,10 @@ def init_from_chkfile(chkfile):
     energy = numpy.asarray(lib.chkfile.load(chkfile, 'scf/e_tot'))
     kpts = numpy.asarray(lib.chkfile.load(chkfile, 'scf/kpts'))
     nkpts = len(kpts)
-    AORot = numpy.asarray(lib.chkfile.load(chkfile, 'scf/orthoAORot')).reshape(nkpts,nao,-1)
+    try:
+        AORot = numpy.asarray(lib.chkfile.load(chkfile, 'scf/orthoAORot')).reshape(nkpts,nao,-1)
+    except ValueError:
+        AORot = numpy.zeros((nkpts, nao, nao))
     # benchmark
     # construct
     kmf = scf.KRHF(cell, kpts)
