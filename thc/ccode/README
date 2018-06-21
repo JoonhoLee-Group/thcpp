@@ -1,0 +1,9 @@
+To compile do:
+
+>> module load intel hdf5-serial fftw cmake/3.8.2 mkl
+
+>> CC=mpicc CXX=mpic++ cmake -H. -Bbuild -DMKL_FLAG=cluster
+
+>> cd build
+
+>> make
