@@ -31,6 +31,8 @@ args : :class:`ArgumentParser`
                         default='wfn_thc.dat', help='Wavefunction file.')
     parser.add_argument('-d', '--dump-file', type=str, dest='dump_file',
                         default='aos.h5', help='AO input dump for THC++ input.')
+    parser.add_argument('-n', '--ngs', type=int, dest='ngs',
+                        default=None, help='Real space grid.')
     parser.add_argument('-f', '--file', type=str, dest='filename', help='SCF dump.')
     args = parser.parse_args(args)
 
@@ -47,7 +49,8 @@ def main(args):
                       ortho_ao=args.ortho,
                       orbital_file=args.dump_file,
                       wfn_file=args.wfn_file,
-                      half_rotate=args.trial)
+                      half_rotate=args.trial,
+                      ngs=args.ngs)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
