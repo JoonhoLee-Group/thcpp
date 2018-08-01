@@ -3,7 +3,8 @@
 import sys
 import os
 from pyscf.pbc import scf, gto, tools, ao2mo
-from pyscf.pbc.dft import gen_grid, numint
+from pyscf.pbc.gto import cell
+from pyscf.pbc.dft import numint
 from pyscf.pbc.df.df_jk import _ewald_exxdiv_for_G0
 from pyscf.pbc.lib.chkfile import load_cell
 from pyscf import lib
@@ -54,6 +55,9 @@ def unit_cell_to_supercell(cell, kpts, ncopy):
     a = cell.lattice_vectors()
     Ts = numpy.dot(Ts, a)
     uc_slices = mole.aoslice_by_atom(cell)
+    # Might be dealing with GDF calculation where this hasn't been set.
+    if cell.gs is None:
+        cell.gs = numpy.array([20,20,20])
     supercell = tools.super_cell(cell, numpy.array([ncopy,ncopy,ncopy]))
     sc_slices = mole.aoslice_by_atom(supercell)
     # transformation matrix between unit and super cell
@@ -97,8 +101,12 @@ def init_from_chkfile(chkfile):
     if isinstance(cell.atom, str):
         to_native_atom_fmt(cell)
     nao = cell.nao_nr()
-    hcore = numpy.asarray(lib.chkfile.load(chkfile, 'scf/hcore'))
-    fock = numpy.asarray(lib.chkfile.load(chkfile, 'scf/fock'))
+    try:
+        hcore = numpy.asarray(lib.chkfile.load(chkfile, 'scf/hcore'))
+        fock = numpy.asarray(lib.chkfile.load(chkfile, 'scf/fock'))
+    except ValueError:
+        hcore = None
+        fock = None
     energy = numpy.asarray(lib.chkfile.load(chkfile, 'scf/e_tot'))
     kpts = numpy.asarray(lib.chkfile.load(chkfile, 'scf/kpts'))
     nkpts = len(kpts)
@@ -371,10 +379,103 @@ def dump_trial_wavefunction(supercell_mo_orbs, nelec, filename='wfn.dat'):
         else:
             write_mo_matrix(f, supercell_mo_orbs, nao)
 
-def dump_orbitals(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False,
-                  filename='orbitals.h5', half_rotate=False):
-    grid = gen_grid.gen_uniform_grids(supercell)
+def supercell_gs(ncopy, ngs):
+    ngss = ncopy*ngs + (ncopy-1)//2
+    return numpy.array([ngss, ngss, ngss])
+
+def dump_orbitals(supercell, AORot, CikJ, hcore, ncopy, e0=0, ortho_ao=False,
+                  filename='orbitals.h5', half_rotate=False, ngs=None):
+    if ngs is not None:
+        gs = supercell_gs(ncopy, ngs)
+    else:
+        gs = supercell.gs
+    grid = cell.gen_uniform_grids(supercell, gs)
+    print ("Number of real space grid points: %d"%grid.shape[0])
+    coulG = (
+        tools.get_coulG(supercell, k=numpy.zeros(3),
+                        gs=gs)*supercell.vol/ngs**2
+    )
+    if ortho_ao:
+        # Translate one-body hamiltonian from non-orthogonal kpoint basis to
+        # orthogonal supercell basis.
+        hcore = scipy.linalg.block_diag(*hcore)
+        hcore = CikJ.dot(hcore).dot(CikJ.conj().T)
+        if ortho_ao:
+            hcore = unitary_transform(hcore, AORot)
+    with h5py.File(filename, 'w') as fh5:
+        fh5.create_dataset('real_space_grid', data=grid)
+        fh5.create_dataset('hcore', data=hcore)
+        fh5.create_dataset('constant_energy_factors',
+                           data=numpy.array([e0]).reshape(1,1))
+        fh5.create_dataset('num_electrons',
+                           data=numpy.array(supercell.nelec).reshape(1,2))
+        fh5.create_dataset('fft_coulomb', data=coulG.reshape(coulG.shape+(1,)))
+        fh5.create_dataset('AORot', data=AORot)
+        ngs = grid.shape[0]
+        density_dset = fh5.create_dataset('density', shape=(ngs,1), dtype=numpy.float64)
+        density_occ_dset = fh5.create_dataset('density_occ', shape=(ngs,1), dtype=numpy.float64)
+        ao_dset = fh5.create_dataset('aoR', dtype=numpy.complex128,
+                                     shape=(ngs,hcore.shape[-1]))
+        ao_dset.attrs["orthogonalised"] = ortho_ao
+        nup = supercell.nelec[0]
+        ao_half_dset = fh5.create_dataset('aoR_half', dtype=numpy.complex128,
+                                          shape=(ngs,nup))
+        chunk_size = 250000
+        # for simplicity for now.
+        if ngs < chunk_size:
+            chunk_size = ngs - 1
+        if ngs > chunk_size:
+            num_chunks = int(ngs/chunk_size)
+            start = 0
+            end = chunk_size
+            for i in range(0, num_chunks+1):
+                start_time = time.time()
+                print ("Generating AO chunk %d of %d."%(i+1, num_chunks+1))
+                aoR = numint.eval_ao(supercell, grid[start:end])
+                total_time = time.time() - start_time
+                print ("AOs generated in %f s."%total_time)
+                ngs_chunk = len(grid[start:end])
+                rho = numpy.zeros((ngs_chunk,1))
+                rho_occ = numpy.zeros((ngs_chunk,1))
+                start_time = time.time()
+                if ortho_ao:
+                    print ("Orthogonalising AOs.")
+                    # Translate orthogonalising matrix to supercell basis.
+                    aoR = numpy.dot(aoR, AORot)
+                    if half_rotate:
+                        aoR_half = numpy.dot(aoR, numpy.identity(AORot.shape[0])[:,:nup])
+                        for i in range(ngs_chunk):
+                            rho_occ[i] = numpy.dot(aoR_half[i].conj(),aoR_half[i]).real   # not normalized
+                total_time = time.time() - start_time
+                print ("AOs orthogonalised in %f s."%total_time)
+                print ("Computing density.")
+                for i in range(ngs_chunk):
+                    rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
+                start_time = time.time()
+                print ("Dumping data to file.")
+                density_dset[start:end,:] = rho
+                density_occ_dset[start:end,:] = rho_occ
+                ao_dset[start:end,:] = aoR
+                ao_half_dset[start:end,:] = aoR_half
+                total_time = time.time - start_time
+                print ("Data dumped in %f s."%total_time)
+                start += chunk_size
+                end += chunk_size
+                if (end > ngs):
+                    end = ngs
+        fh5.flush()
+
+def dump_orbitals_old(supercell, AORot, CikJ, hcore, ncopy, e0=0, ortho_ao=False,
+                  filename='orbitals.h5', half_rotate=False, ngs=None):
+    if ngs is not None:
+        gs = supercell_gs(ncopy, ngs)
+    else:
+        gs = supercell.gs
+    grid = cell.gen_uniform_grids(supercell, gs)
+    print ("Number of real space grid points: %d"%grid.shape[0])
     aoR = numint.eval_ao(supercell, grid)
+    ngs = grid.shape[0]
+    rho = numpy.zeros((ngs,1))
     if ortho_ao:
         # Translate one-body hamiltonian from non-orthogonal kpoint basis to
         # orthogonal supercell basis.
@@ -384,20 +485,21 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False,
             hcore = unitary_transform(hcore, AORot)
         # Translate orthogonalising matrix to supercell basis.
         aoR = numpy.dot(aoR, AORot)
+        rho_occ = numpy.zeros((ngs,1))
+        rho_half = numpy.zeros((ngs,1))
         if half_rotate:
             nup = supercell.nelec[0]
             aoR_half = numpy.dot(aoR, numpy.identity(AORot.shape[0])[:,:nup])
-            # for i in range(ngs):
-                # rho[i] = numpy.dot(aoR_half[i].conj(),aoR[i]).real   # not normalized
+            for i in range(ngs):
+                rho_occ[i] = numpy.dot(aoR_half[i].conj(),aoR_half[i]).real   # not normalized
+                # rho_half[i] = numpy.dot(aoR_half[i].conj(),aoR[i]).real   # not normalized
     else:
         hcore = scipy.linalg.block_diag(*hcore)
-    ngs = grid.shape[0]
-    rho = numpy.zeros((grid.shape[0],1))
     for i in range(ngs):
         rho[i] = numpy.dot(aoR[i].conj(),aoR[i]).real   # not normalized
     coulG = (
         tools.get_coulG(supercell, k=numpy.zeros(3),
-                        gs=supercell.gs)*supercell.vol/ngs**2
+                        gs=gs)*supercell.vol/ngs**2
     )
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
@@ -405,6 +507,8 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, e0=0, ortho_ao=False,
         ao_dset.attrs["orthogonalised"] = ortho_ao
         ao_dset = fh5.create_dataset('aoR_half', data=aoR_half.astype(numpy.complex128))
         fh5.create_dataset('density', data=rho)
+        fh5.create_dataset('density_occ', data=rho_occ)
+        fh5.create_dataset('density_half', data=rho_half)
         fh5.create_dataset('hcore', data=hcore)
         fh5.create_dataset('constant_energy_factors',
                            data=numpy.array([e0]).reshape(1,1))
@@ -457,7 +561,7 @@ def supercell_molecular_orbitals_uhf(AORot, fock, CikJ):
     return (mo_energies, mo_orbs)
 
 def dump_thc_data_sc(scf_dump, ortho_ao=False, wfn_file='wfn.dat',
-                     orbital_file='orbitals.h5'):
+                     orbital_file='orbitals.h5', ngs=None):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     AORot = AORot[0]
     fock = fock[0]
@@ -467,10 +571,11 @@ def dump_thc_data_sc(scf_dump, ortho_ao=False, wfn_file='wfn.dat',
     e0 = mf.energy_nuc()
     e0 += -0.5 * cell.nelectron * tools.pbc.madelung(cell, kpts)
     dump_orbitals(cell, AORot, None, hcore, e0=e0,
-                  ortho_ao=ortho_ao, mos=False, filename=orbital_file)
+                  ortho_ao=ortho_ao, mos=False, filename=orbital_file,
+                  ngs=ngs)
 
 def dump_thc_data(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
-                  wfn_file='wfn.dat', orbital_file='orbitals.h5'):
+                  wfn_file='wfn.dat', orbital_file='orbitals.h5', ngs=None):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
     ncopy = num_copy(nkpts)
@@ -489,8 +594,8 @@ def dump_thc_data(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
     print ("Writing supercell orbitals to %s"%orbital_file)
     e0 = nkpts * mf.energy_nuc()
     e0 += -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
-    dump_orbitals(supercell, AORot, CikJ, hcore, half_rotate=half_rotate, e0=e0,
-                  ortho_ao=ortho_ao, filename=orbital_file)
+    dump_orbitals(supercell, AORot, CikJ, hcore, ncopy, half_rotate=half_rotate, e0=e0,
+                  ortho_ao=ortho_ao, filename=orbital_file, ngs=ngs)
 
 def test_mos(scf_dump):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
