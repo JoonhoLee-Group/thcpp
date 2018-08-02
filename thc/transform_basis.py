@@ -117,21 +117,21 @@ def init_from_chkfile(chkfile):
     # benchmark
     # construct
     kmf = scf.KRHF(cell, kpts)
-    # kmf.mo_occ = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_occ'))
-    # kmf.mo_energies = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_energy'))
-    with h5py.File(chkfile, 'r') as fh5:
-        try:
-            kmf.mo_occ = get_kpoint_data(fh5, 'scf/mo_occ__from_list__/')
-            kmf.mo_coeff = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__/')
-            kmf.mo_energy = get_kpoint_data(fh5, 'scf/mo_energy__from_list__/')
-            if len(kmf.mo_occ) == 4:
-                uhf = True
-            else:
-                uhf = False
-        except KeyError:
-            kmf.mo_occ = None
-            kmf.mo_coeff = None
+    try:
+        # kmf.mo_occ = get_kpoint_data(fh5, 'scf/mo_occ__from_list__/')
+        # kmf.mo_coeff = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__/')
+        # kmf.mo_energy = get_kpoint_data(fh5, 'scf/mo_energy__from_list__/')
+        kmf.mo_occ = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_occ'))
+        kmf.mo_coeff = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_coeff'))
+        kmf.mo_energies = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_energy'))
+        if len(kmf.mo_occ) == 4:
+            uhf = True
+        else:
             uhf = False
+    except KeyError:
+        kmf.mo_occ = None
+        kmf.mo_coeff = None
+        uhf = False
     return (cell, kmf, hcore, fock, AORot, kpts, energy, uhf)
 
 def kpoints_to_supercell(A, C):
@@ -638,12 +638,15 @@ def test_mos(scf_dump):
     print ("ecore mo: ", 2*numpy.einsum('ji,ji->', hcore_mo.conj(), G),
             G.trace())
 
-def dump_wavefunction_old(scf_dump):
+def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
-    ncopy = num_copy(nkpts)
-    nks = numpy.array([ncopy]*3)
-    print ("kpoint grid:", nks)
+    if kpoint_grid is None:
+        ncopy = num_copy(nkpts)
+        nks = numpy.array([ncopy]*3)
+    else:
+        nks = numpy.array([int(nk) for nk in kpoint_grid.split()])
+    print ("kpoint grid:", nks, nkpts, nks[0]*nks[1]*nks[2])
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, nks)
     rdm = mf.make_rdm1()
     rdm = scipy.linalg.block_diag(*rdm)
@@ -668,9 +671,9 @@ def dump_wavefunction_old(scf_dump):
     print ("ecore: ", numpy.einsum('ji,ji->', hcore.conj(), rdm),
            (rdm.dot(S)).trace(), rdm.trace())
     # print ("ecore: ", 2*numpy.einsum('ij,ij->', hcore, rdm2))
-    # scmf = scf.RHF(supercell)
+    scmf = scf.RHF(supercell)
     # print ("RHF")
-    # h1e_sc = scmf.get_hcore()
+    h1e_sc = scmf.get_hcore()
     # print ("HCORE")
     # rdm_sc = CikJ.dot(rdm).dot(CikJ.conj().T)
     # S_sc = CikJ.dot(S).dot(CikJ.conj().T)
@@ -718,11 +721,10 @@ def dump_wavefunction_old(scf_dump):
     psi = ev4[:,:nup]
     G = (psi.dot(psi.conj().T)).T
     hcore_sc = CikJ.T.dot(hcore).dot(CikJ.conj().T)
-    # print ("diff: ", numpy.max(hcore_sc-h1e_sc))
+    print ("diff: ", numpy.max(hcore_sc-h1e_sc))
     hcore_sc_ortho = (A.conj().T).dot(hcore_sc).dot(A)
     hcore_sc_ortho = 0.5*(hcore_sc_ortho+hcore_sc_ortho.conj().T)
     print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho, G), G.trace())
-    print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', 0.5*(hcore_sc_ortho+hcore_sc_ortho.conj().T), G), G.trace())
     # hcore_sc_ortho2 = (A.conj().T).dot(h1e_sc).dot(A)
     # print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho2, G), G.trace())
     # print (numpy.max(hcore_sc_ortho2-hcore_sc_ortho))
