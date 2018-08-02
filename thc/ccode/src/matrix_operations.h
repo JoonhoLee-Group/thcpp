@@ -370,7 +370,7 @@ inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<
 }
 
 template <class T>
-int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG)
+int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool write=false)
 {
   // Singular Values.
   std::vector<double> S(A.nrows);
@@ -380,6 +380,12 @@ int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG)
   double rcond = std::max(A.nrows, A.ncols) * S[0] * 1e-16;
   // S is sorted so this is a bit stupid.
   // Binary search.
+  if (BG.rank == 0 && write) {
+    std::cout << "Singular values." << std::endl;
+    for (int i = 0; i < S.size(); i++) {
+      std::cout << i << " " << S[i] << std::endl;
+    }
+  }
   int null = 0;
   for (int i = 0; i < S.size(); i++) {
     if (S[i] < rcond) null++;
