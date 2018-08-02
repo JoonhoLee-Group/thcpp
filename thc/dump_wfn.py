@@ -33,6 +33,8 @@ args : :class:`ArgumentParser`
                         default='aos.h5', help='AO input dump for THC++ input.')
     parser.add_argument('-n', '--ngs', type=int, dest='ngs',
                         default=None, help='Real space grid.')
+    parser.add_argument('-k', '--kpoints', type=str, dest='kpoints',
+                        default=None, help='Grid integers.')
     parser.add_argument('-f', '--file', type=str, dest='filename', help='SCF dump.')
     args = parser.parse_args(args)
 
@@ -50,7 +52,8 @@ def main(args):
                       orbital_file=args.dump_file,
                       wfn_file=args.wfn_file,
                       half_rotate=args.trial,
-                      ngs=args.ngs)
+                      ngs=args.ngs,
+                      kpoint_grid=args.kpoints)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
