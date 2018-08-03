@@ -22,7 +22,7 @@ namespace DistributedMatrix
       Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid);
       Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid, int br, int bc);
       Matrix(std::string filename, std::string name,
-             ContextHandler::BlacsGrid &Grid, bool row_major=true);
+             ContextHandler::BlacsGrid &Grid, bool row_major=true, bool parallel=false);
       Matrix(const Matrix& M);
       ~Matrix();
       void gather_block_cyclic(int ctxt);
@@ -114,21 +114,30 @@ namespace DistributedMatrix
   // Read from file.
   template <class T>
   Matrix<T>::Matrix(std::string filename, std::string name,
-                 ContextHandler::BlacsGrid &Grid, bool row_major)
+                    ContextHandler::BlacsGrid &Grid, bool row_major, bool parallel)
   {
     std::vector<hsize_t> dims(2);
     if (Grid.rank == 0) {
       std::cout << "#################################################" << std::endl;
       std::cout << " * Reading " << name << " matrix." << std::endl;
-      double tread = clock();
-      H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
-      // Read data from file.
-      H5Helper::read_matrix(file, name, store, dims);
-      tread = clock() - tread;
-      std::cout << " * Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;
-      double memory = UTILS::get_memory(store);
-      std::cout << " * Memory usage for " << name << ": " << memory << " GB" << std::endl;
-      file.close();
+    }
+    double tread = clock();
+    if (!parallel) {
+      if (Grid.rank == 0) {
+        H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
+        // Read data from file.
+        H5Helper::read_matrix(file, name, store, dims);
+        file.close();
+      }
+    } else {
+        H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
+        H5Helper::read_matrix_hyperslab(file, name, store, Grid.rank, Grid.nprocs);
+    }
+    tread = clock() - tread;
+    if (Grid.rank == 0) {
+        std::cout << " * Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;
+        double memory = UTILS::get_memory(store);
+        std::cout << " * Memory usage for " << name << ": " << memory << " GB" << std::endl;
     }
     MPI_Bcast(dims.data(), 2, MPI::UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
     if (row_major) {
