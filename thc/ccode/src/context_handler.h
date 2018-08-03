@@ -1,6 +1,7 @@
 #ifndef CONTEXT_HANDLER_H
 #define CONTEXT_HANDLER_H
 #include "cblacs_defs.h"
+#include "mpi.h"
 
 namespace ContextHandler
 {
@@ -15,6 +16,7 @@ namespace ContextHandler
         int nrows, ncols;
         int row, col;
         int ctxt;
+        MPI_Comm comm;
   };
   // Handle different blacs grid distributions
   class BlacsHandler

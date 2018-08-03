@@ -1,6 +1,7 @@
 #include "context_handler.h"
 #include <math.h>
 #include <iostream>
+#include <mpi.h>
 
 namespace ContextHandler
 {
@@ -16,6 +17,7 @@ namespace ContextHandler
     Root = BlacsGrid(1, 1, rank);
     Square = BlacsGrid(proc_rows, proc_cols, rank);
     Column = BlacsGrid(1, proc_rows*proc_cols, rank);
+    comm = MPI_COMM_WORLD;
   }
   BlacsHandler::~BlacsHandler() {}
   // Constructor for potentially non-square processor grid.
@@ -30,6 +32,7 @@ namespace ContextHandler
     ctxt = ctxt_sys;
     Cblacs_gridinit(&ctxt, "Row-major", nrows, ncols);
     Cblacs_gridinfo(ctxt, &nrows, &ncols, &row, &col);
+    comm = MPI_COMM_WORLD;
   }
   BlacsGrid::~BlacsGrid() {}
 }
