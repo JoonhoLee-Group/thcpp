@@ -35,6 +35,37 @@ namespace H5Helper
     //dataset.read(matrix.data(), H5::PredType::NATIVE_DOUBLE, data_mspace, dataspace);
     read_dataset(dataset, matrix, data_mspace, dataspace);
   }
+  template <typename T>
+  void read_matrix_hyperslab(H5::H5File matrix_file, const H5std_string data_name,
+                    std::vector<T> &matrix, std::vector<hsize_t> &dims, hsize_t nrows, hsize_t row_offset)
+  {
+    const int ndims = 2;
+
+    // get dataset
+    H5::DataSet dataset = matrix_file.openDataSet(data_name);
+    // get the dataspace
+    H5::DataSpace dataspace = dataset.getSpace();
+    // check that signal has 2 dims
+    if (dataspace.getSimpleExtentNdims() != ndims) {
+      std::cerr << "dataset has wrong number of dimensions" << std::endl;
+    }
+
+    // get dimensions
+    dataspace.getSimpleExtentDims(dims.data(), NULL);
+
+    // allocate memory and read data
+    matrix.resize(nrows*dims[1]);
+    hsize_t count = {nrows, dims[1]};
+    hsizt_t offset = {row_offset, 0};
+    dataspace.selectHyperslab(H5S_SELECT_SET, count, offset);
+    hsize_t dims_out = {nrows, dims[1]};
+    hsize_t offset_out = {0, 0};
+    hsize_t count_out = {nrows, dims[1]};
+    DataSpace memspace(ndims, dims_out);
+    memspace.selectHyperslab(H5S_SELECT_SET, count_out, offset_out);
+    read_dataset(dataset, matrix, memspace, dataspace);
+
+  }
   void write(H5::H5File &fh5, std::string name, std::vector<std::complex<double> > &data, std::vector<hsize_t> &dims, bool compress=false);
   void write(H5::H5File &fh5, std::string name, std::vector<double> &data, std::vector<hsize_t> &dims, bool compress=false);
   void write(H5::H5File &fh5, std::string name, std::vector<int> &data, std::vector<hsize_t> &dims, bool compress=false);
