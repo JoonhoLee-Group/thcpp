@@ -29,6 +29,7 @@ namespace ContextHandler
       BlacsGrid Root;
       BlacsGrid Square;
       BlacsGrid Column;
+      MPI_Comm comm;
   };
 }
 #endif
