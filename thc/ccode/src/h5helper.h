@@ -37,9 +37,10 @@ namespace H5Helper
   }
   template <typename T>
   void read_matrix_hyperslab(H5::H5File matrix_file, const H5std_string data_name,
-                    std::vector<T> &matrix, std::vector<hsize_t> &dims, hsize_t nrows, hsize_t row_offset)
+                             std::vector<T> &matrix, int iproc, int nprocs)
   {
     const int ndims = 2;
+    std::vector<hsize_t> dims(ndims);
 
     // get dataset
     H5::DataSet dataset = matrix_file.openDataSet(data_name);
@@ -52,17 +53,21 @@ namespace H5Helper
 
     // get dimensions
     dataspace.getSimpleExtentDims(dims.data(), NULL);
+    hsize_t nrows = dims[0], ncols = dims[1];
+    hsize_t chunk = (int)(nrows/nprocs);
+    hsize_t row_offset = iproc * chunk;
+    hsize_t nrows_iproc = std::min(nrows-row_offset, chunk);
 
     // allocate memory and read data
     matrix.resize(nrows*dims[1]);
-    hsize_t count = {nrows, dims[1]};
-    hsizt_t offset = {row_offset, 0};
-    dataspace.selectHyperslab(H5S_SELECT_SET, count, offset);
-    hsize_t dims_out = {nrows, dims[1]};
-    hsize_t offset_out = {0, 0};
-    hsize_t count_out = {nrows, dims[1]};
-    DataSpace memspace(ndims, dims_out);
-    memspace.selectHyperslab(H5S_SELECT_SET, count_out, offset_out);
+    std::vector<hsize_t> count = {nrows, dims[1]};
+    std::vector<hsize_t> offset = {row_offset, 0};
+    dataspace.selectHyperslab(H5S_SELECT_SET, count.data(), offset.data());
+    std::vector<hsize_t> dims_out = {nrows, dims[1]};
+    std::vector<hsize_t> offset_out = {0, 0};
+    std::vector<hsize_t> count_out = {nrows, dims[1]};
+    H5::DataSpace memspace(ndims, dims_out.data());
+    memspace.selectHyperslab(H5S_SELECT_SET, count_out.data(), offset_out.data());
     read_dataset(dataset, matrix, memspace, dataspace);
 
   }
