@@ -42,22 +42,19 @@ namespace InterpolatingVectors
     check_rank(BH);
   }
 
-  void IVecs::setup_orbital_products(DistributedMatrix::Matrix<std::complex<double> > &Pua,
+  void IVecs::setup_pseudo_dm(DistributedMatrix::Matrix<std::complex<double> > &Pua,
                                      std::vector<int> &interp_indxs,
                                      ContextHandler::BlacsHandler &BH,
                                      std::string aos, bool write,
                                      std::string prfx="")
   {
-    // (Ngrid, M)
-    DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, aos, BH.Root);
-    // (Nmu, M)
-    DistributedMatrix::Matrix<std::complex<double> > aoR_mu(interp_indxs.size(), aoR.ncols, BH.Root);
+    // (M, Ngrid).
+    DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, aos, BH.Column, true, true);
+    // (M, Nmu).
+    DistributedMatrix::Matrix<std::complex<double> > aoR_mu(aoR.nrows, interp_indxs.size(), BH.Root);
+    if (BH.rank == 0) std::cout << " * Down-sampling " << aos << " to find aoR_mu." << std::endl;
+    MatrixOperations::down_sample_distributed_columns(aoR, aoR_mu, interp_indxs, BH);
     if (BH.rank == 0) {
-      std::cout << " * Down-sampling " << aos << " to find aoR_mu" << std::endl;
-      MatrixOperations::down_sample(aoR, aoR_mu, interp_indxs, aoR.ncols);
-      // QMCPACK expects the transpose of this matrix and we need to transpose the data
-      // to construct CZt, we'll need to flip the axes however.
-      MatrixOperations::local_transpose(aoR_mu);
       if (write) {
         std::cout << " * Writing aoR_mu to file" << std::endl;
         H5::Exception::dontPrint();
@@ -106,7 +103,10 @@ namespace InterpolatingVectors
 
   void IVecs::setup_CZt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
   {
-    setup_orbital_products(CZt, interp_indxs, BH, "aoR", true);
+    // CZt = (aoR_mu^{*T} aoR)*(aoR_mu^{*T} aoR)^*,
+    //     = P_{mu r} P_{mu r}^{*}
+    // Where P are the orbital product matrices.
+    setup_pseudo_dm(CZt, interp_indxs, BH, "aoR", true);
     for (int i = 0; i < CZt.store.size(); i++) {
       CZt.store[i] = CZt.store[i]*std::conj(CZt.store[i]);
     }
@@ -114,9 +114,9 @@ namespace InterpolatingVectors
 
   void IVecs::setup_CZt_half(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
   {
-    setup_orbital_products(CZt, interp_indxs, BH, "aoR", true, "HalfTransformedFull");
+    setup_pseudo_dm(CZt, interp_indxs, BH, "aoR", true, "HalfTransformedFull");
     DistributedMatrix::Matrix<std::complex<double> > Pua;
-    setup_orbital_products(Pua, interp_indxs, BH, "aoR_half", true, "HalfTransformedOcc");
+    setup_pseudo_dm(Pua, interp_indxs, BH, "aoR_half", true, "HalfTransformedOcc");
     for (int i = 0; i < CZt.store.size(); i++) {
       CZt.store[i] = CZt.store[i]*std::conj(Pua.store[i]);
     }
