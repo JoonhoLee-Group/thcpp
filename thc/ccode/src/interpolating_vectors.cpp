@@ -98,8 +98,7 @@ namespace InterpolatingVectors
     MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
     // Now Hermitian transpose [aoR_mu].
     if (BH.rank == 0) std::cout << " * Transposing sub-sampled orbitals." << std::endl;
-    MatrixOperations::transpose(aoR_mu, BH.Square, true);
-    Pua.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
+    Pua.setup_matrix(aoR_mu.ncols, aoR.ncols, BH.Square);
     if (BH.rank == 0) {
       std::cout << " * Constructing CZt matrix" << std::endl;
       std::cout << " * Matrix Shape: (" << CZt.nrows << ", " << CZt.ncols << ")" << std::endl;
@@ -107,7 +106,7 @@ namespace InterpolatingVectors
       std::cout << "  * Local memory usage (on root processor): " << memory << " GB" << std::endl;
       std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
     }
-    MatrixOperations::product(aoR_mu, aoR, Pua);
+    MatrixOperations::product(aoR_mu, aoR, Pua, 'C', 'N');
     MatrixOperations::local_transpose(Pua, false);
     MatrixOperations::swap_dims(Pua);
     if (write) {
@@ -138,11 +137,16 @@ namespace InterpolatingVectors
 
   void IVecs::setup_CZt_half(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
   {
+    // For the half transformed case we have:
+    // CZt = (aoR_mu_occ^{*T} aoR_occ)*(aoR_mu^{*T} aoR)^*,
+    //     = Pocc_{mu r} P_{mu r}^{*}
+    // Where P_{mu r} = \sum_i (\phi_i^mu)*\phi_i^r and
+    // Pocc_{mu r} \sum_a (\phi_a^mu)*\phi_a^r
     setup_pseudo_dm(CZt, interp_indxs, BH, "aoR", true, "HalfTransformedFull");
     DistributedMatrix::Matrix<std::complex<double> > Pua;
     setup_pseudo_dm(Pua, interp_indxs, BH, "aoR_half", true, "HalfTransformedOcc");
     for (int i = 0; i < CZt.store.size(); i++) {
-      CZt.store[i] = CZt.store[i]*std::conj(Pua.store[i]);
+      CZt.store[i] = Pua.store[i] * std::conj(CZt.store[i]);
     }
   }
 
@@ -251,19 +255,14 @@ namespace InterpolatingVectors
     // (nmu, ngrid)
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
     double t_muv = clock();
-    if (!half_rotate) {
-      IVMG = IVG;
-      MatrixOperations::transpose(IVMG, BH.Square, true);
-    }
     if (half_rotate) {
-      // Computes M_{uv} \sum_G \zeta_mu(-G) \zeta_nu(G).
+      // Computes M_{uv} = \sum_G \zeta_mu(-G) \zeta_nu(G).
       MatrixOperations::product(IVMG, IVG, Muv, 'T', 'N');
     } else {
-      // Computes M_{uv} \sum_G \zeta^{*}_mu(G) \zeta_nu(G).
+      // Computes M_{uv} = \sum_G \zeta^{*}_mu(G) \zeta_nu(G).
       // Uses rank-k update routine which returns only lower ('L') part of Muv which is
       // consistent with Cholesky decomposition used later.
-      std::cout << IVMG.nrows << " " << IVMG.ncols << " " << IVG.nrows << " " << IVG.ncols << std::endl;
-      MatrixOperations::product(IVMG, IVG, Muv, 'N', 'N');
+      MatrixOperations::product(IVG, Muv, 'C', 'L');
     }
     if (BH.rank == 0) std::cout << "  * Time to construct Muv: " << (clock()-t_muv) / CLOCKS_PER_SEC << " seconds." << std::endl;
   }
@@ -322,7 +321,8 @@ namespace InterpolatingVectors
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
     // parallelism.  We actually solved for Theta^{*T}, so conjugate to get actual
     // interpolating vectors.
-    MatrixOperations::transpose(CZt, BH.Square, true);
+    bool hermi = true;
+    MatrixOperations::transpose(CZt, BH.Square, hermi);
     if (BH.rank == 0) {
       std::cout << " * Column cyclic CZt matrix info:" << std::endl;
     }
@@ -395,8 +395,8 @@ namespace InterpolatingVectors
       ncols = CZt.nrows;
     } else {
       // Don't allocate the extra memory
-      nrows = CZt.ncols;
-      ncols = CZt.nrows;
+      nrows = 1;
+      ncols = 1;
     }
     double tfft = clock();
     DistributedMatrix::Matrix<std::complex<double> > IVMG(nrows, ncols, BH.Column, CZt.ncols, 1);
