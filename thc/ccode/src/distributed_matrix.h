@@ -122,6 +122,7 @@ namespace DistributedMatrix
       std::cout << " * Reading " << name << " matrix." << std::endl;
     }
     double tread = clock();
+    hsize_t hyp_chunk; // For hyperslab / parallel read of row / column.
     if (!parallel) {
       if (Grid.rank == 0) {
         H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
@@ -131,7 +132,9 @@ namespace DistributedMatrix
       }
     } else {
         H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
-        H5Helper::read_matrix_hyperslab(file, name, store, Grid.rank, Grid.nprocs);
+        H5Helper::read_matrix_hyperslab(file, name, store, dims,
+                                        Grid.rank, Grid.nprocs, hyp_chunk);
+        if (Grid.rank == 0) std::cout << " * Reading matrix in parallel." << std::endl;
     }
     tread = clock() - tread;
     if (Grid.rank == 0) {
@@ -156,11 +159,6 @@ namespace DistributedMatrix
       nrows = dims[1];
       ncols = dims[0];
     }
-    if (Grid.rank == 0) {
-      std::cout << " * Matrix shape: (" << nrows << ", " << ncols << ")" << std::endl;
-      std::cout << "#################################################" << std::endl;
-      std::cout << std::endl;
-    }
     // Hardcoded.
     block_nrows = 64;
     block_ncols = 64;
@@ -170,7 +168,31 @@ namespace DistributedMatrix
     init_col_idx = 1;
     // Setup descriptor arrays for block cyclic distribution.
     desc.resize(9);
-    initialise_descriptor(desc, Grid, local_nrows, local_ncols);
+    // Currently only read in data contiguously in parallel.
+    // For C ordered arrays this means we have read in chunks of rows. For this to make
+    // sense from Fortran's perspective, we would have had to read in columns of the
+    // transpose of the matrix. This is what we want for Column cyclic blacs grid, so just
+    // swap dims to ensure everything is set up approriately.
+    // Only works for reading of columns from C ordered array.
+    if (row_major && parallel) {
+      int tmp = nrows;
+      nrows = ncols;
+      ncols = tmp;
+    }
+    if (row_major && parallel) {
+      initialise_descriptor(desc, Grid, local_nrows, local_ncols, nrows, hyp_chunk);
+    } else {
+      initialise_descriptor(desc, Grid, local_nrows, local_ncols);
+    }
+    if (Grid.rank == 0) {
+      if (row_major && parallel) std::cout << " * Reinterpreting matrix in Fortran format." << std::endl;
+      std::cout << " * Matrix shape: (" << nrows << ", " << ncols << ")" << std::endl;
+      if (parallel) {
+        std::cout << " * Local shape (on root processor): (" << local_nrows << ", " << local_ncols << ")" << std::endl;
+      }
+      std::cout << "#################################################" << std::endl;
+      std::cout << std::endl;
+    }
   }
 
   // setup desc for given blacs context arrays.
