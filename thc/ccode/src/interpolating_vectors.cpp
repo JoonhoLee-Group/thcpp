@@ -15,8 +15,10 @@ namespace InterpolatingVectors
 {
   IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, bool rotate, bool append)
   {
+    int filename_size;
     if (BH.rank == 0) {
       input_file = input.at("orbital_file").get<std::string>();
+      filename_size = input_file.size();
       output_file = input.at("output_file").get<std::string>();
       std::cout << "#################################################" << std::endl;
       std::cout << "##   Setting up interpolative vector solver.   ##" << std::endl;
@@ -28,6 +30,9 @@ namespace InterpolatingVectors
       if (append) H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_TRUNC);
     }
     MPI_Bcast(&nbasis, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&filename_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (BH.rank != 0) input_file.resize(filename_size);
+    MPI_Bcast(&input_file[0], input_file.size()+1, MPI_CHAR, 0, MPI_COMM_WORLD);
     if (rotate) {
       // to distinguish Luv between half rotated and rotated case
       prefix = "HalfTransformed";
