@@ -344,6 +344,15 @@ inline void transpose(DistributedMatrix::Matrix<std::complex<double> > &A, Distr
            AT.store.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc.data());
 }
 
+template <typename T>
+inline void transpose(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &Grid, bool hermi=false)
+{
+  // Temporary store for transposed matrix.
+  DistributedMatrix::Matrix<T> MT(M.ncols, M.nrows, Grid);
+  transpose(M, MT, hermi);
+  M = MT;
+}
+
 // Testing C interface to lapack. Assumes arrays are stored in row major format.
 //inline void least_squares_lapacke(std::vector<double> &A, std::vector<double> &B, int nrow, int ncol, int nrhs)
 //{
