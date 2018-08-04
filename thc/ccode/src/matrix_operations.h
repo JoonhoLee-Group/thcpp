@@ -317,7 +317,7 @@ inline void swap_dims(DistributedMatrix::Matrix<T> &A)
   A.ncols = tmp_row;
 }
 
-inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT)
+inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT, bool hermi=false)
 {
   char trans = 'T';
   double one = 1.0, zero = 0.0;
