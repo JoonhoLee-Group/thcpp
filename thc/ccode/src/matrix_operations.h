@@ -76,9 +76,26 @@ inline void product(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Mat
 inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B,
                     DistributedMatrix::Matrix<std::complex<double> > &C, char transA='N', char transB='N')
 {
-  //char transa = 'N', transb = 'N';
   std::complex<double>  one = 1.0, zero = 0.0;
-  pzgemm_(&transA, &transB, &A.nrows, &B.ncols, &A.ncols,
+  int m, n, k;
+  if ((transA == 'T' || transA == 'C') && transB == 'N') {
+    m = A.ncols;
+    n = B.ncols;
+    k = A.nrows;
+  } else if ((transB == 'T' || transB == 'C') && transA == 'N') {
+    m = A.nrows;
+    n = B.nrows;
+    k = A.ncols;
+  } else if ((transA == 'T' || transA == 'C') && (transB == 'T' || transB == 'C')) {
+    m = A.ncols;
+    n = A.nrows;
+    k = A.nrows;
+  } else {
+    m = A.nrows;
+    n = A.ncols;
+    k = A.ncols;
+  }
+  pzgemm_(&transA, &transB, &m, &n, &k,
           &one,
           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
           B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
