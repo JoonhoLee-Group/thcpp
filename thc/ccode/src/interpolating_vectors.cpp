@@ -48,10 +48,10 @@ namespace InterpolatingVectors
   }
 
   void IVecs::setup_pseudo_dm(DistributedMatrix::Matrix<std::complex<double> > &Pua,
-                                     std::vector<int> &interp_indxs,
-                                     ContextHandler::BlacsHandler &BH,
-                                     std::string aos, bool write,
-                                     std::string prfx="")
+                              std::vector<int> &interp_indxs,
+                              ContextHandler::BlacsHandler &BH,
+                              std::string aos, bool write,
+                              std::string prfx="")
   {
     // (M, Ngrid).
     DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, aos, BH.Column, true, true);
