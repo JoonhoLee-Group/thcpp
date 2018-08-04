@@ -76,25 +76,22 @@ namespace InterpolatingVectors
         std::cout << " * Writing indices of interpolating points to file" << std::endl;
         H5Helper::write(file, "/Hamiltonian/THC/"+prfx+"InterpIndx", interp_indxs, dims);
       }
-    } else {
-      MatrixOperations::swap_dims(aoR_mu);
     }
-    // First need to modify matrices to fortran format.
-    // CZt = (aoR_mu^* aoR^T)*(aoR_mu^* aoR^T)^*,
-    // aoR is in C order, so already transposed from Fortran's perspective, just need to
-    // alter nrows and ncols and conjugate its entries.
-    MatrixOperations::swap_dims(aoR);
-    aoR.initialise_descriptor(aoR.desc, BH.Root, aoR.local_nrows, aoR.local_ncols);
-    // Actually do need to transpose aoR_mu's data this was done above when printing to
-    // file, need revert the shape however.
-    MatrixOperations::swap_dims(aoR_mu);
-    // But shape (Nmu, M) should stay the same.
-    // Finally construct CZt.
-    // aoR^{*}^T distributed block cyclically, in row major format.
-    MatrixOperations::redistribute(aoR, BH.Root, BH.Square, true);
-    for (int i = 0; i < aoR.store.size(); i++) aoR.store[i] = std::conj(aoR.store[i]);
-    // aoR_mu distributed block cyclically, in row major format.
+    // Finally construct pseudo density matrices matrices:
+    //     [P]_{mu,g} = \sum_i \phi_i^{*}(r_mu) \phi_i(r_g),
+    // where r_mu is an interpolating grid point and r_g is from the full real space grid.
+    // [aoR]_{ig} = \phi_i(r_g) and [aoR_mu]_{imu} = \phi_i(r_\mu) are already in fortran
+    // order. Need to Hermitian conjugate [aoR_mu].
+    // Re [aoR] block cyclically, in column major format.
+    if (BH.rank == 0) std::cout << " * Redistributing " << aos << " block cyclically." << std::endl;
+    MatrixOperations::redistribute(aoR, BH.Column, BH.Square, true, 64, 64);
+    // [aoR_mu] is stored on the root processor with shape (M, N_mu).
+    // Redistribute block cyclically.
+    if (BH.rank == 0) std::cout << " * Redistributing sub-sampled " << aos << " block cyclically." << std::endl;
     MatrixOperations::redistribute(aoR_mu, BH.Root, BH.Square, true);
+    // Now Hermitian transpose [aoR_mu].
+    if (BH.rank == 0) std::cout << " * Transposing sub-sampled orbitals." << std::endl;
+    MatrixOperations::transpose(aoR_mu, BH.Square, true);
     Pua.setup_matrix(aoR_mu.nrows, aoR.ncols, BH.Square);
     if (BH.rank == 0) {
       std::cout << " * Constructing CZt matrix" << std::endl;
@@ -136,69 +133,11 @@ namespace InterpolatingVectors
       std::cout << " * Redistributing CZt column cyclically." << std::endl;
     }
     // Number of columns of CZt each processor will get i.e., [rank*ncols_per_block,(rank+1)*ncols_per_block]
-    int ncols_per_block = CZt.ncols / BH.nprocs;
+    int ncols_per_block = CZt.ncols / BH.nprocs; // Check this, I think scalapack will take ceiling rather than floor.
     MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true,
                                    CZt.nrows, ncols_per_block);
-    // Next figure out which columns to select on each processor.
-    // We extend selected index array to be the same size as the CZt.ncols, so that we can
-    // redistribute this array to align with CZt and don't need to figure out any indexing.
-    // not sure if this is any easier than just working out the processor id of the index?
-    DistributedMatrix::Matrix<double> ix_map(1, CZt.ncols, BH.Root);
-    if (BH.rank == 0) {
-      for (int i = 0; i < ix_map.store.size(); i++) {
-          ix_map.store[i] = -1;
-      }
-      for (int i = 0; i < interp_indxs.size(); i++) {
-        ix_map.store[interp_indxs[i]] = 1;
-      }
-    }
-    // Redistribute to same processor grid as CZt.
-    if (BH.rank == 0) {
-      std::cout << " * Redistributing ix_map column cyclically." << std::endl;
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    MatrixOperations::redistribute(ix_map, BH.Root, BH.Column, true, 1, ncols_per_block);
-    int num_cols = 0;
-    {
-      for (int i = 0; i < ix_map.store.size(); i++) {
-        if (ix_map.store[i] > 0) {
-          // Work out number of selected columns on current processor.
-          // These will not be evenly distributed amongst processors.
-          num_cols++;
-        }
-      }
-      std::vector<std::complex<double> > local_cols(CZt.nrows*num_cols);
-      num_cols = 0;
-      // Second time around copy data.
-      for (int i = 0; i < ix_map.store.size(); i++) {
-        if (ix_map.store[i] > 0) {
-          // Index in original global array. We need this to sort collected CCt later.
-          // CZt is stored in Fortran format, so columns are contiguous in memory, which is
-          // what we want.
-          std::copy(CZt.store.begin()+i*CZt.nrows,
-                    CZt.store.begin()+(i+1)*CZt.nrows,
-                    local_cols.begin()+num_cols*CZt.nrows);
-          num_cols++;
-        }
-      }
-      // Work out how many columns of data we'll receive from each processor.
-      std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
-      // Figure out number of columns each processor will send to root.
-      MPI_Gather(&num_cols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
-      disps[0] = 0;
-      recv_counts[0] *= CZt.nrows;
-      for (int i = 1; i < recv_counts.size(); i++) {
-        disps[i] = disps[i-1] + recv_counts[i-1];
-        recv_counts[i] *= CZt.nrows;
-      }
-      // Because interp_indxs is sorted and we've chunked CZt in an ordered way, then the
-      // selected columns in local_cols will be places in CCt in such a way so as to match
-      // the order in aoR_mu, the down sampled atomic orbitals at the interpolating points.
-      CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
-      MPI_Gatherv(local_cols.data(), num_cols*CCt.nrows, MPI_DOUBLE_COMPLEX,
-                  CCt.store.data(), recv_counts.data(), disps.data(), MPI_DOUBLE_COMPLEX,
-                  0, MPI_COMM_WORLD);
-    } // Memory from local stores should be freed.
+    CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
+    MatrixOperations::down_sample_distributed_columns(CZt, CCt, interp_indxs, BH);
     // Back to block cyclic distribution for linear algebra.
     if (BH.rank == 0) {
       std::cout << " * Redistributing CZt block cyclically." << std::endl;
@@ -274,11 +213,9 @@ namespace InterpolatingVectors
     DistributedMatrix::Matrix<double> coulG(input_file, "fft_coulomb", BH.Root);
     // Resize on other processors.
     if (BH.rank != 0) coulG.store.resize(coulG.nrows*coulG.ncols);
-    MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Distribute FFT of coulomb kernel to all processors.
-    //std::complex<double> local_sum = MatrixOperations::vector_sum(IVG.store), global_sum = 0.0;
-    //MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, 0, MPI_COMM_WORLD);
-    // Recall IVGs store is in fortran order so transposed for us.
+    MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    // Recalling IVG data is stored in Fortran order.
     for (int j = 0; j < IVG.local_ncols; j++) {
       for (int i = 0; i < IVG.local_nrows; i++) {
         IVG.store[i+j*IVG.local_nrows] *= sqrt(coulG.store[i]);
@@ -286,24 +223,26 @@ namespace InterpolatingVectors
       }
     }
     // Redistributed to block cyclic.
-    // magic numbers..
     if (BH.rank == 0) std::cout << " * Redistributing reciprocal space interpolating vectors to block cyclic distribution." << std::endl;
     MatrixOperations::redistribute(IVG, BH.Column, BH.Square, true, 64, 64);
     if (half_rotate) MatrixOperations::redistribute(IVMG, BH.Column, BH.Square, true, 64, 64);
     // (nmu, ngrid)
-    DistributedMatrix::Matrix<std::complex<double> > IVMGT(IVG.ncols, IVG.nrows, BH.Square);
-    // overload product for complex data type.
-    if (half_rotate) {
-      // zeta_mu(-G)
-      MatrixOperations::transpose(IVMG, IVMGT);
-    } else {
-      // zeta^{*}_mu(G)
-      MatrixOperations::transpose(IVG, IVMGT, true);
-    }
-    // numpy.dot(IVG, IVG.conj().T)
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
     double t_muv = clock();
-    MatrixOperations::product(IVMGT, IVG, Muv);
+    if (!half_rotate) {
+      IVMG = IVG;
+      MatrixOperations::transpose(IVMG, BH.Square, true);
+    }
+    if (half_rotate) {
+      // Computes M_{uv} \sum_G \zeta_mu(-G) \zeta_nu(G).
+      MatrixOperations::product(IVMG, IVG, Muv, 'T', 'N');
+    } else {
+      // Computes M_{uv} \sum_G \zeta^{*}_mu(G) \zeta_nu(G).
+      // Uses rank-k update routine which returns only lower ('L') part of Muv which is
+      // consistent with Cholesky decomposition used later.
+      std::cout << IVMG.nrows << " " << IVMG.ncols << " " << IVG.nrows << " " << IVG.ncols << std::endl;
+      MatrixOperations::product(IVMG, IVG, Muv, 'N', 'N');
+    }
     if (BH.rank == 0) std::cout << "  * Time to construct Muv: " << (clock()-t_muv) / CLOCKS_PER_SEC << " seconds." << std::endl;
   }
 
@@ -311,11 +250,10 @@ namespace InterpolatingVectors
                             ContextHandler::BlacsHandler &BH)
   {
     if (!half_rotate) {
-      DistributedMatrix::Matrix<std::complex<double> > Luv = Muv;
       if (BH.rank == 0) std::cout << " * Performing Cholesky decomposition on Muv." << std::endl;
       double t_chol = clock();
-      int ierr = MatrixOperations::cholesky(Luv);
-      MatrixOperations::redistribute(Luv, BH.Square, BH.Root);
+      int ierr = MatrixOperations::cholesky(Muv);
+      MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
       if (BH.rank == 0) {
         H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
         H5::Group base = file.openGroup("/Hamiltonian");
@@ -332,15 +270,15 @@ namespace InterpolatingVectors
         }
         std::cout << std::endl;
         // Zero out upper triangular bit of Luv which contains upper triangular part of Muv.
-        for (int i = 0; i < Luv.nrows; i++) {
-          for (int j = (i+1); j < Luv.ncols; j++) {
+        for (int i = 0; i < Muv.nrows; i++) {
+          for (int j = (i+1); j < Muv.ncols; j++) {
             // Luv is in fortran order.
-            Luv.store[i+j*Luv.nrows] = 0.0;
+            Muv.store[i+j*Muv.nrows] = 0.0;
           }
         }
         // Transform back to C order.
-        MatrixOperations::local_transpose(Luv, false);
-        Luv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
+        MatrixOperations::local_transpose(Muv, false);
+        Muv.dump_data(file, "/Hamiltonian/THC", prefix+"Luv");
       }
     } else {
       MatrixOperations::redistribute(Muv, BH.Square, BH.Root);
@@ -360,25 +298,14 @@ namespace InterpolatingVectors
                           DistributedMatrix::Matrix<std::complex<double> > &IVMG)
   {
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
-    // parallelism.
-    {
-      DistributedMatrix::Matrix<std::complex<double> > CZ(CZt.ncols, CZt.nrows, BH.Square);
-      MatrixOperations::transpose(CZt, CZ);
-      CZt.store.swap(CZ.store);
-      int tmp = CZt.ncols;
-      CZt.ncols = CZt.nrows;
-      CZt.nrows = tmp;
-    }
-    MatrixOperations::initialise_descriptor(CZt, BH.Square, 64, 64);
-    // will now have matrix in C order with local shape (nmu, ngs)
-    // We actually solved for Theta^{*T}, so conjugate to get actual interpolating
-    // vectors.
-    for (int i = 0; i < CZt.store.size(); i++) CZt.store[i] = std::conj(CZt.store[i]);
+    // parallelism.  We actually solved for Theta^{*T}, so conjugate to get actual
+    // interpolating vectors.
+    MatrixOperations::transpose(CZt, BH.Square, true);
     if (BH.rank == 0) {
       std::cout << " * Column cyclic CZt matrix info:" << std::endl;
     }
-    // Fortran sees this as a (ngrid, nmu) matrix, so we can distributed vectors of length
-    // ngrid cyclically to each processor.
+    // The `1' as the final argument cyclicially distributes the columns since we don't
+    // care about the order.
     MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, 1);
     if (BH.rank == 0) {
       std::cout << std::endl;
@@ -446,8 +373,8 @@ namespace InterpolatingVectors
       ncols = CZt.nrows;
     } else {
       // Don't allocate the extra memory
-      nrows = 1;
-      ncols = 1;
+      nrows = CZt.ncols;
+      ncols = CZt.nrows;
     }
     double tfft = clock();
     DistributedMatrix::Matrix<std::complex<double> > IVMG(nrows, ncols, BH.Column, CZt.ncols, 1);
