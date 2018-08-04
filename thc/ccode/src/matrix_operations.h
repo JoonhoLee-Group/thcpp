@@ -344,6 +344,7 @@ inline void transpose(DistributedMatrix::Matrix<std::complex<double> > &A, Distr
            AT.store.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc.data());
 }
 
+// TODO: Scoping issues.
 template <typename T>
 inline void transpose(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &Grid, bool hermi=false)
 {
