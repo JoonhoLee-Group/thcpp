@@ -83,12 +83,13 @@ namespace InterpolatingVectors
       MatrixOperations::local_transpose(aoR_mu, true);
       MatrixOperations::swap_dims(aoR_mu);
     }
+    std::cout << aoR_mu.nrows << " " << aoR_mu.ncols << std::endl;
     // Finally construct pseudo density matrices matrices:
     //     [P]_{mu,g} = \sum_i \phi_i^{*}(r_mu) \phi_i(r_g),
     // where r_mu is an interpolating grid point and r_g is from the full real space grid.
     // [aoR]_{ig} = \phi_i(r_g) and [aoR_mu]_{imu} = \phi_i(r_\mu) are already in fortran
     // order. Need to Hermitian conjugate [aoR_mu].
-    // Re [aoR] block cyclically, in column major format.
+    // Redistribute [aoR] block cyclically, in column major format.
     if (BH.rank == 0) std::cout << " * Redistributing " << aos << " block cyclically." << std::endl;
     MatrixOperations::redistribute(aoR, BH.Column, BH.Square, true, 64, 64);
     // [aoR_mu] is stored on the root processor with shape (M, N_mu).
@@ -107,6 +108,21 @@ namespace InterpolatingVectors
       std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
     }
     MatrixOperations::product(aoR_mu, aoR, Pua);
+    MatrixOperations::local_transpose(Pua, false);
+    MatrixOperations::swap_dims(Pua);
+    if (write) {
+      H5::Exception::dontPrint();
+      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+      try {
+        H5::Group base = file.createGroup("/Hamiltonian");
+      } catch (H5::FileIException) {
+        H5::Group base = file.openGroup("/Hamiltonian");
+      }
+      Pua.dump_data(file, "/Hamiltonian/THC", prfx+"Pua");
+    }
+    // Transpose back to Fortran order.
+    MatrixOperations::local_transpose(Pua, true);
+    MatrixOperations::swap_dims(Pua);
   }
 
   void IVecs::setup_CZt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
