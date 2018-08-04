@@ -59,7 +59,10 @@ namespace InterpolatingVectors
     DistributedMatrix::Matrix<std::complex<double> > aoR_mu(aoR.nrows, interp_indxs.size(), BH.Root);
     if (BH.rank == 0) std::cout << " * Down-sampling " << aos << " to find aoR_mu." << std::endl;
     MatrixOperations::down_sample_distributed_columns(aoR, aoR_mu, interp_indxs, BH);
+    // aoR_mu's data is in fortran order. Need to transpose back for C order.
     if (BH.rank == 0) {
+      MatrixOperations::local_transpose(aoR_mu, false);
+      MatrixOperations::swap_dims(aoR_mu);
       if (write) {
         std::cout << " * Writing aoR_mu to file" << std::endl;
         H5::Exception::dontPrint();
@@ -76,6 +79,9 @@ namespace InterpolatingVectors
         std::cout << " * Writing indices of interpolating points to file" << std::endl;
         H5Helper::write(file, "/Hamiltonian/THC/"+prfx+"InterpIndx", interp_indxs, dims);
       }
+      // Transpose back to Fortran order.
+      MatrixOperations::local_transpose(aoR_mu, true);
+      MatrixOperations::swap_dims(aoR_mu);
     }
     // Finally construct pseudo density matrices matrices:
     //     [P]_{mu,g} = \sum_i \phi_i^{*}(r_mu) \phi_i(r_g),
