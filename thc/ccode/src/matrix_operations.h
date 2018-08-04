@@ -377,6 +377,13 @@ inline void redistribute(int m, int n,
 {
     pzgemr2d_(&m, &n, a, &ia, &ib, desca, b, &ia, &ib, descb, &ictxt);
 }
+inline void redistribute(int m, int n,
+                         int *a, int ia, int ja, int *desca,
+                         int *b, int ib, int jb, int *descb,
+                         int ictxt)
+{
+    pigemr2d_(&m, &n, a, &ia, &ib, desca, b, &ia, &ib, descb, &ictxt);
+}
 
 template <typename T>
 inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB, bool verbose=false, int block_rows=-1, int block_cols=-1)
