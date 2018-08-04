@@ -103,6 +103,17 @@ inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, Distrib
           C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
 }
 
+inline void product(DistributedMatrix::Matrix<std::complex<double> > &A,
+                    DistributedMatrix::Matrix<std::complex<double> > &C, char transA='N', char uplo='U')
+{
+  std::complex<double>  one = 1.0, zero = 0.0;
+  pzherk_(&uplo, &transA, &A.ncols, &A.nrows,
+          &one,
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          &zero,
+          C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
+}
+
 // distributed matrix least squares solve.
 inline int least_squares(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &B)
 {
