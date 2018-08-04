@@ -107,6 +107,8 @@ namespace InterpolatingVectors
       std::cout << "  * Local shape (on root processor): (" << CZt.local_nrows << ", " << CZt.local_ncols << ")" << std::endl;
     }
     MatrixOperations::product(aoR_mu, aoR, Pua, 'C', 'N');
+#ifndef NDEBUG
+    // Print out pseudo density matrices.
     MatrixOperations::local_transpose(Pua, false);
     MatrixOperations::swap_dims(Pua);
     if (write) {
@@ -122,6 +124,7 @@ namespace InterpolatingVectors
     // Transpose back to Fortran order.
     MatrixOperations::local_transpose(Pua, true);
     MatrixOperations::swap_dims(Pua);
+#endif
   }
 
   void IVecs::setup_CZt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
