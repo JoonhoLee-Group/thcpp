@@ -83,7 +83,6 @@ namespace InterpolatingVectors
       MatrixOperations::local_transpose(aoR_mu, true);
       MatrixOperations::swap_dims(aoR_mu);
     }
-    std::cout << aoR_mu.nrows << " " << aoR_mu.ncols << std::endl;
     // Finally construct pseudo density matrices matrices:
     //     [P]_{mu,g} = \sum_i \phi_i^{*}(r_mu) \phi_i(r_g),
     // where r_mu is an interpolating grid point and r_g is from the full real space grid.
@@ -162,7 +161,7 @@ namespace InterpolatingVectors
       std::cout << " * Redistributing CZt column cyclically." << std::endl;
     }
     // Number of columns of CZt each processor will get i.e., [rank*ncols_per_block,(rank+1)*ncols_per_block]
-    int ncols_per_block = CZt.ncols / BH.nprocs; // Check this, I think scalapack will take ceiling rather than floor.
+    int ncols_per_block = ceil((double)CZt.ncols/BH.nprocs); // Check this, I think scalapack will take ceiling rather than floor.
     MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true,
                                    CZt.nrows, ncols_per_block);
     CCt.setup_matrix(CZt.nrows, interp_indxs.size(), BH.Root);
