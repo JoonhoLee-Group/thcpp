@@ -373,8 +373,7 @@ namespace InterpolatingVectors
       std::cout << " * Performing least squares solve." << std::endl;
     }
     double tlsq = clock();
-    //int ierr = MatrixOperations::least_squares(CCt, CZt);
-    int ierr = 0;
+    int ierr = MatrixOperations::least_squares(CCt, CZt);
     tlsq = clock() - tlsq;
     if (BH.rank == 0) {
       std::cout << " * Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
@@ -393,7 +392,6 @@ namespace InterpolatingVectors
       std::cout << " * Performing FFT on interpolating vectors." << std::endl;
       std::cout << std::endl;
     }
-    //DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
     int nrows, ncols;
     if (half_rotate) {
       nrows = CZt.ncols;
