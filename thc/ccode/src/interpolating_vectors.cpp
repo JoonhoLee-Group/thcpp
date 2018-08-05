@@ -232,8 +232,7 @@ namespace InterpolatingVectors
     H5Helper::write(file, "/Hamiltonian/THC/dims", thc_dims, dims);
   }
 
-  void IVecs::construct_muv(DistributedMatrix::Matrix<std::complex<double> > &IVG,
-                            DistributedMatrix::Matrix<std::complex<double> > &IVMG,
+  void IVecs::construct_muv(DistributedMatrix::Matrix<std::complex<double> > &IVMG,
                             DistributedMatrix::Matrix<std::complex<double> > &Muv,
                             ContextHandler::BlacsHandler &BH)
   {
@@ -244,27 +243,27 @@ namespace InterpolatingVectors
     // Distribute FFT of coulomb kernel to all processors.
     MPI_Bcast(coulG.store.data(), coulG.store.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // Recalling IVG data is stored in Fortran order.
-    for (int j = 0; j < IVG.local_ncols; j++) {
-      for (int i = 0; i < IVG.local_nrows; i++) {
-        IVG.store[i+j*IVG.local_nrows] *= sqrt(coulG.store[i]);
+    for (int j = 0; j < CZt.local_ncols; j++) {
+      for (int i = 0; i < CZt.local_nrows; i++) {
+        CZt.store[i+j*CZt.local_nrows] *= sqrt(coulG.store[i]);
         if (half_rotate) IVMG.store[i+j*IVMG.local_nrows] *= sqrt(coulG.store[i]);
       }
     }
     // Redistributed to block cyclic.
     if (BH.rank == 0) std::cout << " * Redistributing reciprocal space interpolating vectors to block cyclic distribution." << std::endl;
-    MatrixOperations::redistribute(IVG, BH.Column, BH.Square, true, 64, 64);
+    MatrixOperations::redistribute(CZt, BH.Column, BH.Square, true, 64, 64);
     if (half_rotate) MatrixOperations::redistribute(IVMG, BH.Column, BH.Square, true, 64, 64);
     // (nmu, ngrid)
     if (BH.rank == 0) std::cout << " * Constructing Muv." << std::endl;
     double t_muv = clock();
     if (half_rotate) {
       // Computes M_{uv} = \sum_G \zeta_mu(-G) \zeta_nu(G).
-      MatrixOperations::product(IVMG, IVG, Muv, 'T', 'N');
+      MatrixOperations::product(IVMG, CZt, Muv, 'T', 'N');
     } else {
       // Computes M_{uv} = \sum_G \zeta^{*}_mu(G) \zeta_nu(G).
       // Uses rank-k update routine which returns only lower ('L') part of Muv which is
       // consistent with Cholesky decomposition used later.
-      MatrixOperations::product(IVG, Muv, 'C', 'L');
+      MatrixOperations::product(CZt, Muv, 'C', 'L');
     }
     if (BH.rank == 0) std::cout << "  * Time to construct Muv: " << (clock()-t_muv) / CLOCKS_PER_SEC << " seconds." << std::endl;
   }
@@ -317,7 +316,7 @@ namespace InterpolatingVectors
     }
   }
 
-  void IVecs::fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG,
+  void IVecs::fft_vectors(ContextHandler::BlacsHandler &BH,
                           DistributedMatrix::Matrix<std::complex<double> > &IVMG)
   {
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
@@ -339,20 +338,23 @@ namespace InterpolatingVectors
     int ngs = CZt.nrows;
     int ng = (int)pow(ngs, 1.0/3.0);
     int offset = ngs;
+    std::vector<std::complex<double> > tmp(offset);
     for (int i = 0; i < CZt.local_ncols; i++) {
       // Data needs to be complex.
+      std::copy(CZt.store.data()+i*offset, CZt.store.data()+(i+1)*offset,
+                tmp.data());
       if (BH.rank == 0) {
         if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZt.local_ncols << std::endl;
       }
       p = fftw_plan_dft_3d(ng, ng, ng,
+                           reinterpret_cast<fftw_complex*>(tmp.data()),
                            reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
-                           reinterpret_cast<fftw_complex*>(IVG.store.data()+i*offset),
                            FFTW_FORWARD, FFTW_ESTIMATE);
       fftw_execute(p);
       fftw_destroy_plan(p);
       if (half_rotate) {
         p = fftw_plan_dft_3d(ng, ng, ng,
-                             reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
+                             reinterpret_cast<fftw_complex*>(tmp.data()),
                              reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*offset),
                              FFTW_BACKWARD, FFTW_ESTIMATE);
         fftw_execute(p);
@@ -371,7 +373,8 @@ namespace InterpolatingVectors
       std::cout << " * Performing least squares solve." << std::endl;
     }
     double tlsq = clock();
-    int ierr = MatrixOperations::least_squares(CCt, CZt);
+    //int ierr = MatrixOperations::least_squares(CCt, CZt);
+    int ierr = 0;
     tlsq = clock() - tlsq;
     if (BH.rank == 0) {
       std::cout << " * Time for least squares solve : " << tlsq / CLOCKS_PER_SEC << " seconds" << std::endl;
@@ -390,7 +393,7 @@ namespace InterpolatingVectors
       std::cout << " * Performing FFT on interpolating vectors." << std::endl;
       std::cout << std::endl;
     }
-    DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
+    //DistributedMatrix::Matrix<std::complex<double> > IVG(CZt.ncols, CZt.nrows, BH.Column, CZt.ncols, 1);
     int nrows, ncols;
     if (half_rotate) {
       nrows = CZt.ncols;
@@ -402,14 +405,14 @@ namespace InterpolatingVectors
     }
     double tfft = clock();
     DistributedMatrix::Matrix<std::complex<double> > IVMG(nrows, ncols, BH.Column, CZt.ncols, 1);
-    fft_vectors(BH, IVG, IVMG);
+    fft_vectors(BH, IVMG);
     tfft = clock() - tfft;
     if (BH.rank == 0) {
       std::cout << " * Time to FFT interpolating vectors : " << tfft / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
     }
-    DistributedMatrix::Matrix<std::complex<double> > Muv(IVG.ncols, IVG.ncols, BH.Square);
-    construct_muv(IVG, IVMG, Muv, BH);
+    DistributedMatrix::Matrix<std::complex<double> > Muv(CZt.nrows, CZt.nrows, BH.Square);
+    construct_muv(IVMG, Muv, BH);
     dump_thc_data(Muv, BH);
   }
 }

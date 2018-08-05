@@ -17,10 +17,9 @@ namespace InterpolatingVectors
       void dump_qmcpack_data(int thc_cfac, int thc_half_cfac,
                              ContextHandler::BlacsHandler &BH);
     private:
-      void fft_vectors(ContextHandler::BlacsHandler &BH, DistributedMatrix::Matrix<std::complex<double> > &IVG,
+      void fft_vectors(ContextHandler::BlacsHandler &BH,
                        DistributedMatrix::Matrix<std::complex<double> > &IVMG);
-      void construct_muv(DistributedMatrix::Matrix<std::complex<double> > &IVG,
-                         DistributedMatrix::Matrix<std::complex<double> > &IVMG,
+      void construct_muv(DistributedMatrix::Matrix<std::complex<double> > &IVMG,
                          DistributedMatrix::Matrix<std::complex<double> > &Muv,
                          ContextHandler::BlacsHandler &BH);
       void dump_thc_data(DistributedMatrix::Matrix<std::complex<double> > &Muv,
