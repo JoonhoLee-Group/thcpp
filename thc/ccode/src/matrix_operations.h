@@ -210,74 +210,6 @@ inline void down_sample(DistributedMatrix::Matrix<T> &A, DistributedMatrix::Matr
     }
 }
 
-template <typename T>
-void down_sample_distributed_columns(DistributedMatrix::Matrix<T> &From, DistributedMatrix::Matrix<T> &To,
-                                     std::vector<int> &indxs, ContextHandler::BlacsHandler &BH)
-{
-  // Figure out which columns to select on each processor.
-  // We extend selected index array to be the same size as the CZt.ncols, so that we can
-  // redistribute this array to align with CZt and don't need to figure out any indexing.
-  DistributedMatrix::Matrix<int> ix_map(1, From.ncols, BH.Root);
-  if (BH.rank == 0) {
-    for (int i = 0; i < ix_map.store.size(); i++) {
-        ix_map.store[i] = -1;
-    }
-    for (int i = 0; i < indxs.size(); i++) {
-      ix_map.store[indxs[i]] = 1;
-    }
-  }
-  // Redistribute to same processor grid as CZt.
-  if (BH.rank == 0) {
-    std::cout << " * Redistributing ix_map column cyclically." << std::endl;
-  }
-  MPI_Barrier(MPI_COMM_WORLD); // Necessary?
-  redistribute(ix_map, BH.Root, BH.Column, true, 1, From.local_ncols);
-  int num_cols = 0;
-  {
-    for (int i = 0; i < ix_map.store.size(); i++) {
-      if (ix_map.store[i] > 0) {
-        // Work out number of selected columns on current processor.
-        // These will not be evenly distributed amongst processors.
-        num_cols++;
-      }
-    }
-    std::vector<T> local_cols(From.nrows*num_cols);
-    num_cols = 0;
-    // Second time around copy data.
-    for (int i = 0; i < ix_map.store.size(); i++) {
-      if (ix_map.store[i] > 0) {
-        // Index in original global array. We need this to sort collected To later.
-        // From is stored in Fortran format, so columns are contiguous in memory, which is
-        // what we want.
-        std::copy(From.store.begin()+i*From.nrows,
-                  From.store.begin()+(i+1)*From.nrows,
-                  local_cols.begin()+num_cols*From.nrows);
-        num_cols++;
-      }
-    }
-    std::cout << num_cols << std::endl;
-    // Work out how many columns of data we'll receive from each processor.
-    std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
-    // Figure out number of columns each processor will send to root.
-    MPI_Gather(&num_cols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
-    disps[0] = 0;
-    recv_counts[0] *= From.nrows;
-    for (int i = 1; i < recv_counts.size(); i++) {
-      disps[i] = disps[i-1] + recv_counts[i-1];
-      recv_counts[i] *= From.nrows;
-    }
-    // Because interp_indxs is sorted and we've chunked From in an ordered way, then the
-    // selected columns in local_cols will be places in To in such a way so as to match
-    // the order in aoR_mu, the down sampled atomic orbitals at the interpolating points.
-    // Not templated ....
-    //std::cout << BH.rank << " " << num_cols << " " << local_cols.size() << " " << To.store.size() << " " << To.nrows << "  " << To.ncols << std::endl;
-    MPI_Gatherv(local_cols.data(), num_cols*To.nrows, MPI_DOUBLE_COMPLEX,
-                To.store.data(), recv_counts.data(), disps.data(), MPI_DOUBLE_COMPLEX,
-                0, MPI_COMM_WORLD);
-  } // Memory from local stores should be freed.
-}
-
-
 inline int cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
 {
   char uplo = 'L';
@@ -417,6 +349,74 @@ inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsG
     std::cout << "  * Local shape (on root processor) following redistribution: (" << M.local_nrows << ", " << M.local_ncols << ")" << std::endl;
   }
 }
+
+template <typename T>
+void down_sample_distributed_columns(DistributedMatrix::Matrix<T> &From, DistributedMatrix::Matrix<T> &To,
+                                     std::vector<int> &indxs, ContextHandler::BlacsHandler &BH)
+{
+  // Figure out which columns to select on each processor.
+  // We extend selected index array to be the same size as the CZt.ncols, so that we can
+  // redistribute this array to align with CZt and don't need to figure out any indexing.
+  DistributedMatrix::Matrix<int> ix_map(1, From.ncols, BH.Root);
+  if (BH.rank == 0) {
+    for (int i = 0; i < ix_map.store.size(); i++) {
+        ix_map.store[i] = -1;
+    }
+    for (int i = 0; i < indxs.size(); i++) {
+      ix_map.store[indxs[i]] = 1;
+    }
+  }
+  // Redistribute to same processor grid as CZt.
+  if (BH.rank == 0) {
+    std::cout << " * Redistributing ix_map column cyclically." << std::endl;
+  }
+  MPI_Barrier(MPI_COMM_WORLD); // Necessary?
+  int ncols_per_block = ceil((double)From.ncols/BH.nprocs); // Check this, I think scalapack will take ceiling rather than floor.
+  redistribute(ix_map, BH.Root, BH.Column, true, 1, ncols_per_block);
+  int num_cols = 0;
+  {
+    for (int i = 0; i < ix_map.store.size(); i++) {
+      if (ix_map.store[i] > 0) {
+        // Work out number of selected columns on current processor.
+        // These will not be evenly distributed amongst processors.
+        num_cols++;
+      }
+    }
+    std::vector<T> local_cols(From.nrows*num_cols);
+    num_cols = 0;
+    // Second time around copy data.
+    for (int i = 0; i < ix_map.store.size(); i++) {
+      if (ix_map.store[i] > 0) {
+        // Index in original global array. We need this to sort collected To later.
+        // From is stored in Fortran format, so columns are contiguous in memory, which is
+        // what we want.
+        std::copy(From.store.begin()+i*From.nrows,
+                  From.store.begin()+(i+1)*From.nrows,
+                  local_cols.begin()+num_cols*From.nrows);
+        num_cols++;
+      }
+    }
+    // Work out how many columns of data we'll receive from each processor.
+    std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
+    // Figure out number of columns each processor will send to root.
+    MPI_Gather(&num_cols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    disps[0] = 0;
+    recv_counts[0] *= From.nrows;
+    for (int i = 1; i < recv_counts.size(); i++) {
+      disps[i] = disps[i-1] + recv_counts[i-1];
+      recv_counts[i] *= From.nrows;
+    }
+    // Because interp_indxs is sorted and we've chunked From in an ordered way, then the
+    // selected columns in local_cols will be places in To in such a way so as to match
+    // the order in aoR_mu, the down sampled atomic orbitals at the interpolating points.
+    // Not templated ....
+    MPI_Gatherv(local_cols.data(), num_cols*To.nrows, MPI_DOUBLE_COMPLEX,
+                To.store.data(), recv_counts.data(), disps.data(), MPI_DOUBLE_COMPLEX,
+                0, MPI_COMM_WORLD);
+  } // Memory from local stores should be freed.
+}
+
+
 
 template <class T>
 inline void initialise_descriptor(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, int br, int bc)
