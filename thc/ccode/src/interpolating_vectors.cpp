@@ -112,6 +112,7 @@ namespace InterpolatingVectors
     MatrixOperations::local_transpose(Pua, false);
     MatrixOperations::swap_dims(Pua);
     if (BH.rank == 0 && write) {
+      std::cout << " * DEBUG: Writing pseudo density matrices to file." << std::endl;
       H5::Exception::dontPrint();
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       try {
