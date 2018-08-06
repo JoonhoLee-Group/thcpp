@@ -345,13 +345,10 @@ namespace InterpolatingVectors
     // Need to transform interpolating vectors to C order so as to use FFTW and exploit
     // parallelism.  We actually solved for Theta^{*T}, so conjugate to get actual
     // interpolating vectors.
-    bool hermi = true;
-    MatrixOperations::transpose(CZt, BH.Square, hermi);
-    if (BH.rank == 0) {
-      std::cout << " * Column cyclic CZt matrix info:" << std::endl;
-    }
 #ifndef NDEBUG
     MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
+    MatrixOperations::local_transpose(CZt, false);
+    MatrixOperations::swap_dims(CZt);
     if (BH.rank == 0 && write) {
       std::cout << " * DEBUG: Writing matrix of interpolating vectors to file." << std::endl;
       H5::Exception::dontPrint();
@@ -363,8 +360,15 @@ namespace InterpolatingVectors
       }
       CZt.dump_data(file, "/Hamiltonian/THC", prefix+"IVecs");
     }
+    MatrixOperations::local_transpose(CZt, true);
+    MatrixOperations::swap_dims(CZt);
     MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true, 64, 64);
 #endif
+    bool hermi = true;
+    MatrixOperations::transpose(CZt, BH.Square, hermi);
+    if (BH.rank == 0) {
+      std::cout << " * Column cyclic CZt matrix info:" << std::endl;
+    }
     // The `1' as the final argument cyclicially distributes the columns since we don't
     // care about the order.
     MatrixOperations::redistribute(CZt, BH.Square, BH.Column, true, CZt.nrows, 1);
