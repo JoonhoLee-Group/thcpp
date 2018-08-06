@@ -398,7 +398,7 @@ namespace InterpolatingVectors
       } catch (H5::FileIException) {
         H5::Group base = file.openGroup("/Hamiltonian");
       }
-      CCt.dump_data(file, "/Hamiltonian/THC", prefix+"IVG");
+      CZt.dump_data(file, "/Hamiltonian/THC", prefix+"IVG");
     }
     // Transpose back to Fortran order.
     MatrixOperations::local_transpose(CZt, true);
