@@ -138,6 +138,25 @@ namespace InterpolatingVectors
     for (int i = 0; i < CZt.store.size(); i++) {
       CZt.store[i] = CZt.store[i]*std::conj(CZt.store[i]);
     }
+#ifndef NDEBUG
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
+    MatrixOperations::local_transpose(CZt, false);
+    MatrixOperations::swap_dims(CZt);
+    if (BH.rank == 0 && write) {
+      std::cout << " * DEBUG: Writing CZt to file." << std::endl;
+      H5::Exception::dontPrint();
+      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+      try {
+        H5::Group base = file.createGroup("/Hamiltonian");
+      } catch (H5::FileIException) {
+        H5::Group base = file.openGroup("/Hamiltonian");
+      }
+      CZt.dump_data(file, "/Hamiltonian/THC", prefix+"CZt");
+    }
+    MatrixOperations::local_transpose(CZt, true);
+    MatrixOperations::swap_dims(CZt);
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true, 64, 64);
+#endif
   }
 
   void IVecs::setup_CZt_half(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
