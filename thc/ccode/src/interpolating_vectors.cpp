@@ -108,9 +108,10 @@ namespace InterpolatingVectors
     MatrixOperations::product(aoR_mu, aoR, Pua, 'C', 'N');
 #ifndef NDEBUG
     // Print out pseudo density matrices.
+    MatrixOperations::redistribute(Pua, BH.Square, BH.Root);
     MatrixOperations::local_transpose(Pua, false);
     MatrixOperations::swap_dims(Pua);
-    if (write) {
+    if (BH.rank == 0 && write) {
       H5::Exception::dontPrint();
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       try {
@@ -123,6 +124,7 @@ namespace InterpolatingVectors
     // Transpose back to Fortran order.
     MatrixOperations::local_transpose(Pua, true);
     MatrixOperations::swap_dims(Pua);
+    MatrixOperations::redistribute(Pua, BH.Root, BH.Square, true, 64, 64);
 #endif
   }
 
