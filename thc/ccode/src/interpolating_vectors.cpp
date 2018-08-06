@@ -174,6 +174,26 @@ namespace InterpolatingVectors
       std::cout << " * Redistributing CZt block cyclically." << std::endl;
     }
     MatrixOperations::redistribute(CZt, BH.Column, BH.Square, true, 64, 64);
+#ifndef NDEBUG
+    // Print out pseudo density matrices.
+    MatrixOperations::redistribute(CCt, BH.Square, BH.Root);
+    MatrixOperations::local_transpose(CCt, false);
+    MatrixOperations::swap_dims(CCt);
+    if (BH.rank == 0 && write) {
+      std::cout << " * DEBUG: Writing CCt matrix to file." << std::endl;
+      H5::Exception::dontPrint();
+      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+      try {
+        H5::Group base = file.createGroup("/Hamiltonian");
+      } catch (H5::FileIException) {
+        H5::Group base = file.openGroup("/Hamiltonian");
+      }
+      CCt.dump_data(file, "/Hamiltonian/THC", prefix+"CCt");
+    }
+    // Transpose back to Fortran order.
+    MatrixOperations::local_transpose(CCt, true);
+    MatrixOperations::swap_dims(CCt);
+#endif
     if (BH.rank == 0) {
       std::cout << " * Redistributing CCt block cyclically." << std::endl;
     }
@@ -364,6 +384,27 @@ namespace InterpolatingVectors
         fftw_destroy_plan(p);
       }
     }
+#ifndef NDEBUG
+    // Print out pseudo density matrices.
+    MatrixOperations::redistribute(CZt, BH.Column, BH.Root);
+    MatrixOperations::local_transpose(CZt, false);
+    MatrixOperations::swap_dims(CZt);
+    if (BH.rank == 0 && write) {
+      std::cout << " * DEBUG: Writing FFTd interpolating matrix to file." << std::endl;
+      H5::Exception::dontPrint();
+      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+      try {
+        H5::Group base = file.createGroup("/Hamiltonian");
+      } catch (H5::FileIException) {
+        H5::Group base = file.openGroup("/Hamiltonian");
+      }
+      CCt.dump_data(file, "/Hamiltonian/THC", prefix+"IVG");
+    }
+    // Transpose back to Fortran order.
+    MatrixOperations::local_transpose(CZt, true);
+    MatrixOperations::swap_dims(CZt);
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Column);
+#endif
   }
 
   void IVecs::kernel(ContextHandler::BlacsHandler &BH)
