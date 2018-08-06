@@ -411,7 +411,7 @@ namespace InterpolatingVectors
       std::cout << " * Time to FFT interpolating vectors : " << tfft / CLOCKS_PER_SEC << " seconds" << std::endl;
       std::cout << std::endl;
     }
-    DistributedMatrix::Matrix<std::complex<double> > Muv(CZt.nrows, CZt.nrows, BH.Square);
+    DistributedMatrix::Matrix<std::complex<double> > Muv(CZt.ncols, CZt.ncols, BH.Square);
     construct_muv(IVMG, Muv, BH);
     dump_thc_data(Muv, BH);
   }
