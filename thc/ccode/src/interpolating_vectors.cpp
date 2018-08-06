@@ -353,7 +353,7 @@ namespace InterpolatingVectors
 #ifndef NDEBUG
     MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
     if (BH.rank == 0 && write) {
-      std::cout << " * DEBUG: Writing interpolating matrix to file." << std::endl;
+      std::cout << " * DEBUG: Writing matrix of interpolating vectors to file." << std::endl;
       H5::Exception::dontPrint();
       H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
       try {
