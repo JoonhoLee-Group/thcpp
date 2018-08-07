@@ -385,6 +385,28 @@ namespace InterpolatingVectors
 #endif
     bool hermi = true;
     MatrixOperations::transpose(CZt, BH.Square, hermi);
+    //MatrixOperations::swap_dims(CZt);
+#ifndef NDEBUG
+    // Print out pseudo density matrices.
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
+    MatrixOperations::local_transpose(CZt, false);
+    MatrixOperations::swap_dims(CZt);
+    if (BH.rank == 0 && write) {
+      std::cout << " * DEBUG: Writing FFTd interpolating matrix to file." << std::endl;
+      H5::Exception::dontPrint();
+      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
+      try {
+        H5::Group base = file.createGroup("/Hamiltonian");
+      } catch (H5::FileIException) {
+        H5::Group base = file.openGroup("/Hamiltonian");
+      }
+      CZt.dump_data(file, "/Hamiltonian/THC", prefix+"IVecs_conj");
+    }
+    // Transpose back to Fortran order.
+    MatrixOperations::local_transpose(CZt, true);
+    MatrixOperations::swap_dims(CZt);
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Square);
+#endif
     if (BH.rank == 0) {
       std::cout << " * Column cyclic CZt matrix info:" << std::endl;
     }
