@@ -419,7 +419,7 @@ namespace InterpolatingVectors
     // Finally we can FFT interpolating vectors
     fftw_plan p;
     int ngs = CZt.nrows;
-    int ng = (int)pow(ngs, 1.0/3.0);
+    int ng = ceil(pow(ngs, 1.0/3.0)); // Super fucking dodgy on many accounts - source of kpoint issue, rounding so fucking stupid.
     int offset = ngs;
     std::vector<std::complex<double> > tmp(offset);
     for (int i = 0; i < CZt.local_ncols; i++) {
