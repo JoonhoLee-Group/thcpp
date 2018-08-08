@@ -35,6 +35,7 @@ namespace InterpolatingVectors
       int thc_cfac, thc_half_cfac;
       int nbasis;
       bool half_rotate;
+      std::vector<int> fft_grid;
       std::string prefix;
   };
 }

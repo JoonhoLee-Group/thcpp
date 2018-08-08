@@ -34,6 +34,13 @@ namespace InterpolatingVectors
     MPI_Bcast(&filename_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
     if (BH.rank != 0) input_file.resize(filename_size);
     MPI_Bcast(&input_file[0], input_file.size()+1, MPI_CHAR, 0, MPI_COMM_WORLD);
+    DistributedMatrix::Matrix<int> fft(input_file, "fft_grid", BH.Root);
+    if (BH.rank == 0) {
+      fft_grid = fft.store;
+    } else {
+      fft_grid.resize(3);
+    }
+    MPI_Bcast(fft_grid.data(), fft_grid.size(), MPI_INT, 0, MPI_COMM_WORLD);
     if (rotate) {
       // to distinguish Luv between half rotated and rotated case
       prefix = "HalfTransformed";
@@ -348,26 +355,30 @@ namespace InterpolatingVectors
     // Finally we can FFT interpolating vectors
     fftw_plan p;
     int ngs = CZt.nrows;
-    int ng = ceil(pow(ngs, 1.0/3.0)); // Super fucking dodgy on many accounts - source of kpoint issue, rounding so fucking stupid.
-    int offset = ngs;
-    std::vector<std::complex<double> > tmp(offset);
+    std::vector<std::complex<double> > tmp(ngs);
+    if (BH.rank == 0) {
+      std::cout << " * Performing FFT on grid with " << 2*fft_grid[0]+1 << " X " << 2*fft_grid[1]+1 << " X " << 2*fft_grid[2]+1 << " points." << std::endl;
+    }
+    if ((2*fft_grid[0]+1)*(2*fft_grid[0]+1)*(2*fft_grid[0]+1) != ngs) {
+      if (BH.rank == 0) std::cout << " * WARNING: FFT grid not consitent with number of real space grid points." << std::endl;
+    }
     for (int i = 0; i < CZt.local_ncols; i++) {
       // Data needs to be complex.
-      std::copy(CZt.store.data()+i*offset, CZt.store.data()+(i+1)*offset,
+      std::copy(CZt.store.data()+i*ngs, CZt.store.data()+(i+1)*ngs,
                 tmp.data());
       if (BH.rank == 0) {
         if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZt.local_ncols << std::endl;
       }
-      p = fftw_plan_dft_3d(ng, ng, ng,
+      p = fftw_plan_dft_3d(2*fft_grid[0]+1, 2*fft_grid[1]+1, 2*fft_grid[2]+1,
                            reinterpret_cast<fftw_complex*>(tmp.data()),
-                           reinterpret_cast<fftw_complex*>(CZt.store.data()+i*offset),
+                           reinterpret_cast<fftw_complex*>(CZt.store.data()+i*ngs),
                            FFTW_FORWARD, FFTW_ESTIMATE);
       fftw_execute(p);
       fftw_destroy_plan(p);
       if (half_rotate) {
-        p = fftw_plan_dft_3d(ng, ng, ng,
+        p = fftw_plan_dft_3d(2*fft_grid[0]+1, 2*fft_grid[1]+1, 2*fft_grid[2]+1,
                              reinterpret_cast<fftw_complex*>(tmp.data()),
-                             reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*offset),
+                             reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*ngs),
                              FFTW_BACKWARD, FFTW_ESTIMATE);
         fftw_execute(p);
         fftw_destroy_plan(p);
