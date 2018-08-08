@@ -56,8 +56,8 @@ def unit_cell_to_supercell(cell, kpts, nks):
     Ts = numpy.dot(Ts, a)
     uc_slices = mole.aoslice_by_atom(cell)
     # Might be dealing with GDF calculation where this hasn't been set.
-    if cell.gs is None:
-        cell.gs = numpy.array([30,30,30])
+    if cell.mesh is None:
+        cell.mesh = numpy.array([2*30+1,2*30+1,2*30+1])
     supercell = tools.super_cell(cell, nks)
     sc_slices = mole.aoslice_by_atom(supercell)
     # transformation matrix between unit and super cell
@@ -389,14 +389,16 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
                   filename='orbitals.h5', half_rotate=False, ngs=None):
     if ngs is not None:
         gs = supercell_gs(nks, ngs)
+        mesh = numpy.array([2*ng+1 for ng in gs])
     else:
-        gs = supercell.gs
-    grid = cell.gen_uniform_grids(supercell, gs)
+        mesh = supercell.mesh
+        gs = numpy.array([(nfft-1)/2 for nfft in mesh])
+    grid = cell.gen_uniform_grids(supercell, mesh=mesh)
     ngrid_points = grid.shape[0]
     print ("Number of real space grid points: %d"%grid.shape[0])
     coulG = (
         tools.get_coulG(supercell, k=numpy.zeros(3),
-                        gs=gs)*supercell.vol/ngrid_points**2
+                        mesh=mesh)*supercell.vol/ngrid_points**2
     )
     if ortho_ao:
         # Translate one-body hamiltonian from non-orthogonal kpoint basis to
@@ -479,7 +481,9 @@ def dump_orbitals_old(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         gs = supercell_gs(nks, ngs)
     else:
         gs = supercell.gs
-    grid = cell.gen_uniform_grids(supercell, gs)
+
+    mesh = numpy.array([2*ng+1 for g in gs])
+    grid = cell.gen_uniform_grids(supercell, mesh=mesh)
     print ("Number of real space grid points: %d"%grid.shape[0])
     aoR = numint.eval_ao(supercell, grid)
     ngs = grid.shape[0]
