@@ -359,7 +359,7 @@ namespace InterpolatingVectors
     if (BH.rank == 0) {
       std::cout << " * Performing FFT on grid with " << 2*fft_grid[0]+1 << " X " << 2*fft_grid[1]+1 << " X " << 2*fft_grid[2]+1 << " points." << std::endl;
     }
-    if ((2*fft_grid[0]+1)*(2*fft_grid[0]+1)*(2*fft_grid[0]+1) != ngs) {
+    if ((2*fft_grid[0]+1)*(2*fft_grid[1]+1)*(2*fft_grid[2]+1) != ngs) {
       if (BH.rank == 0) std::cout << " * WARNING: FFT grid not consitent with number of real space grid points." << std::endl;
     }
     for (int i = 0; i < CZt.local_ncols; i++) {
