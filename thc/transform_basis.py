@@ -407,6 +407,8 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
             hcore = unitary_transform(hcore, AORot)
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
+        fh5.create_dataset('kpoint_grid', data=nks.reshape(nks.shape+(1,)))
+        fh5.create_dataset('fft_grid', data=gs.reshape(gs.shape+(1,)))
         delta_max = numpy.max(numpy.abs(hcore-hcore.conj().T))
         if (delta_max > 1e-12):
             print ("WARNING: HCORE is not Hermitian. Max difference %13.8e.  Symmetrising for now."%delta_max)

@@ -76,12 +76,40 @@ inline void product(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Mat
 inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B,
                     DistributedMatrix::Matrix<std::complex<double> > &C, char transA='N', char transB='N')
 {
-  //char transa = 'N', transb = 'N';
   std::complex<double>  one = 1.0, zero = 0.0;
-  pzgemm_(&transA, &transB, &A.nrows, &B.ncols, &A.ncols,
+  int m, n, k;
+  if ((transA == 'T' || transA == 'C') && transB == 'N') {
+    m = A.ncols;
+    n = B.ncols;
+    k = A.nrows;
+  } else if ((transB == 'T' || transB == 'C') && transA == 'N') {
+    m = A.nrows;
+    n = B.nrows;
+    k = A.ncols;
+  } else if ((transA == 'T' || transA == 'C') && (transB == 'T' || transB == 'C')) {
+    m = A.ncols;
+    n = A.nrows;
+    k = A.nrows;
+  } else {
+    m = A.nrows;
+    n = A.ncols;
+    k = A.ncols;
+  }
+  pzgemm_(&transA, &transB, &m, &n, &k,
           &one,
           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
           B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
+          &zero,
+          C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
+}
+
+inline void product(DistributedMatrix::Matrix<std::complex<double> > &A,
+                    DistributedMatrix::Matrix<std::complex<double> > &C, char transA='N', char uplo='U')
+{
+  std::complex<double>  one = 1.0, zero = 0.0;
+  pzherk_(&uplo, &transA, &A.ncols, &A.nrows,
+          &one,
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
           &zero,
           C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
 }
@@ -221,7 +249,7 @@ inline void swap_dims(DistributedMatrix::Matrix<T> &A)
   A.ncols = tmp_row;
 }
 
-inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT)
+inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT, bool hermi=false)
 {
   char trans = 'T';
   double one = 1.0, zero = 0.0;
@@ -248,6 +276,16 @@ inline void transpose(DistributedMatrix::Matrix<std::complex<double> > &A, Distr
            AT.store.data(), &AT.init_row_idx, &AT.init_col_idx, AT.desc.data());
 }
 
+// TODO: Scoping issues.
+template <typename T>
+inline void transpose(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &Grid, bool hermi=false)
+{
+  // Temporary store for transposed matrix.
+  DistributedMatrix::Matrix<T> MT(M.ncols, M.nrows, Grid);
+  transpose(M, MT, hermi);
+  M = MT;
+}
+
 // Testing C interface to lapack. Assumes arrays are stored in row major format.
 //inline void least_squares_lapacke(std::vector<double> &A, std::vector<double> &B, int nrow, int ncol, int nrhs)
 //{
@@ -271,6 +309,13 @@ inline void redistribute(int m, int n,
                          int ictxt)
 {
     pzgemr2d_(&m, &n, a, &ia, &ib, desca, b, &ia, &ib, descb, &ictxt);
+}
+inline void redistribute(int m, int n,
+                         int *a, int ia, int ja, int *desca,
+                         int *b, int ib, int jb, int *descb,
+                         int ictxt)
+{
+    pigemr2d_(&m, &n, a, &ia, &ib, desca, b, &ia, &ib, descb, &ictxt);
 }
 
 template <typename T>
@@ -304,6 +349,74 @@ inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsG
     std::cout << "  * Local shape (on root processor) following redistribution: (" << M.local_nrows << ", " << M.local_ncols << ")" << std::endl;
   }
 }
+
+template <typename T>
+void down_sample_distributed_columns(DistributedMatrix::Matrix<T> &From, DistributedMatrix::Matrix<T> &To,
+                                     std::vector<int> &indxs, ContextHandler::BlacsHandler &BH)
+{
+  // Figure out which columns to select on each processor.
+  // We extend selected index array to be the same size as the CZt.ncols, so that we can
+  // redistribute this array to align with CZt and don't need to figure out any indexing.
+  DistributedMatrix::Matrix<int> ix_map(1, From.ncols, BH.Root);
+  if (BH.rank == 0) {
+    for (int i = 0; i < ix_map.store.size(); i++) {
+        ix_map.store[i] = -1;
+    }
+    for (int i = 0; i < indxs.size(); i++) {
+      ix_map.store[indxs[i]] = 1;
+    }
+  }
+  // Redistribute to same processor grid as CZt.
+  if (BH.rank == 0) {
+    std::cout << " * Redistributing ix_map column cyclically." << std::endl;
+  }
+  MPI_Barrier(MPI_COMM_WORLD); // Necessary?
+  int ncols_per_block = ceil((double)From.ncols/BH.nprocs); // Check this, I think scalapack will take ceiling rather than floor.
+  redistribute(ix_map, BH.Root, BH.Column, true, 1, ncols_per_block);
+  int num_cols = 0;
+  {
+    for (int i = 0; i < ix_map.store.size(); i++) {
+      if (ix_map.store[i] > 0) {
+        // Work out number of selected columns on current processor.
+        // These will not be evenly distributed amongst processors.
+        num_cols++;
+      }
+    }
+    std::vector<T> local_cols(From.nrows*num_cols);
+    num_cols = 0;
+    // Second time around copy data.
+    for (int i = 0; i < ix_map.store.size(); i++) {
+      if (ix_map.store[i] > 0) {
+        // Index in original global array. We need this to sort collected To later.
+        // From is stored in Fortran format, so columns are contiguous in memory, which is
+        // what we want.
+        std::copy(From.store.begin()+i*From.nrows,
+                  From.store.begin()+(i+1)*From.nrows,
+                  local_cols.begin()+num_cols*From.nrows);
+        num_cols++;
+      }
+    }
+    // Work out how many columns of data we'll receive from each processor.
+    std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
+    // Figure out number of columns each processor will send to root.
+    MPI_Gather(&num_cols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    disps[0] = 0;
+    recv_counts[0] *= From.nrows;
+    for (int i = 1; i < recv_counts.size(); i++) {
+      disps[i] = disps[i-1] + recv_counts[i-1];
+      recv_counts[i] *= From.nrows;
+    }
+    // Because interp_indxs is sorted and we've chunked From in an ordered way, then the
+    // selected columns in local_cols will be places in To in such a way so as to match
+    // the order in aoR_mu, the down sampled atomic orbitals at the interpolating points.
+    // Not templated ....
+    MPI_Gatherv(local_cols.data(), num_cols*To.nrows, MPI_DOUBLE_COMPLEX,
+                To.store.data(), recv_counts.data(), disps.data(), MPI_DOUBLE_COMPLEX,
+                0, MPI_COMM_WORLD);
+  } // Memory from local stores should be freed.
+}
+
+
 
 template <class T>
 inline void initialise_descriptor(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, int br, int bc)

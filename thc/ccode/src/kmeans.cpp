@@ -228,7 +228,7 @@ namespace InterpolatingPoints
       }
     }
     if (diff > threshold) {
-      std::cout << " * Threshold not breached. Final Error: " << diff << std::endl;
+      if (BH.rank == 0) std::cout << " * Threshold not breached. Final Error: " << diff << std::endl;
       new_centroids.swap(current_centroids);
       gather_data(grid.store, BH.Column);
       if (BH.rank == 0) {

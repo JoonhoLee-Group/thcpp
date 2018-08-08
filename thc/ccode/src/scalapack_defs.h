@@ -17,6 +17,10 @@ extern "C" {
                  std::complex<double> *a, int *ia, int *ja, int *desca,
                  std::complex<double> *b, int *ib, int *jb, int *descb,
                  int *ictxt);
+  void pigemr2d_(int *m, int *n,
+                 int *a, int *ia, int *ja, int *desca,
+                 int *b, int *ib, int *jb, int *descb,
+                 int *ictxt);
   // OK this is really (p)blas.
   // Matrix-Matrix multiplication.
   void pdgemm_(char * transa, char *transb, int *m, int *n, int *k,
@@ -29,6 +33,11 @@ extern "C" {
                std::complex<double> *alpha,
                std::complex<double> *A, int* ia, int *ja, int *desca,
                std::complex<double> *B, int* ib, int *jb, int *descb,
+               std::complex<double> *beta,
+               std::complex<double> *C, int *ic, int *jc, int *descc);
+  void pzherk_(char *uplo, char *transa, int *n, int *k,
+               std::complex<double> *alpha,
+               std::complex<double> *A, int* ia, int *ja, int *desca,
                std::complex<double> *beta,
                std::complex<double> *C, int *ic, int *jc, int *descc);
   // Parallel least squares solver.

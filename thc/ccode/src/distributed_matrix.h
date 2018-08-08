@@ -22,7 +22,7 @@ namespace DistributedMatrix
       Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid);
       Matrix(int nrows, int ncols, ContextHandler::BlacsGrid &Grid, int br, int bc);
       Matrix(std::string filename, std::string name,
-             ContextHandler::BlacsGrid &Grid, bool row_major=true);
+             ContextHandler::BlacsGrid &Grid, bool row_major=true, bool parallel=false);
       Matrix(const Matrix& M);
       ~Matrix();
       void gather_block_cyclic(int ctxt);
@@ -114,21 +114,33 @@ namespace DistributedMatrix
   // Read from file.
   template <class T>
   Matrix<T>::Matrix(std::string filename, std::string name,
-                 ContextHandler::BlacsGrid &Grid, bool row_major)
+                    ContextHandler::BlacsGrid &Grid, bool row_major, bool parallel)
   {
     std::vector<hsize_t> dims(2);
     if (Grid.rank == 0) {
       std::cout << "#################################################" << std::endl;
       std::cout << " * Reading " << name << " matrix." << std::endl;
-      double tread = clock();
-      H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
-      // Read data from file.
-      H5Helper::read_matrix(file, name, store, dims);
-      tread = clock() - tread;
-      std::cout << " * Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;
-      double memory = UTILS::get_memory(store);
-      std::cout << " * Memory usage for " << name << ": " << memory << " GB" << std::endl;
-      file.close();
+    }
+    double tread = clock();
+    hsize_t hyp_chunk; // For hyperslab / parallel read of row / column.
+    if (!parallel) {
+      if (Grid.rank == 0) {
+        H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
+        // Read data from file.
+        H5Helper::read_matrix(file, name, store, dims);
+        file.close();
+      }
+    } else {
+        H5::H5File file = H5::H5File(filename, H5F_ACC_RDONLY);
+        H5Helper::read_matrix_hyperslab(file, name, store, dims,
+                                        Grid.rank, Grid.nprocs, hyp_chunk);
+        if (Grid.rank == 0) std::cout << " * Reading matrix in parallel." << std::endl;
+    }
+    tread = clock() - tread;
+    if (Grid.rank == 0) {
+        std::cout << " * Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;
+        double memory = UTILS::get_memory(store);
+        std::cout << " * Memory usage for " << name << ": " << memory << " GB" << std::endl;
     }
     MPI_Bcast(dims.data(), 2, MPI::UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
     if (row_major) {
@@ -147,11 +159,6 @@ namespace DistributedMatrix
       nrows = dims[1];
       ncols = dims[0];
     }
-    if (Grid.rank == 0) {
-      std::cout << " * Matrix shape: (" << nrows << ", " << ncols << ")" << std::endl;
-      std::cout << "#################################################" << std::endl;
-      std::cout << std::endl;
-    }
     // Hardcoded.
     block_nrows = 64;
     block_ncols = 64;
@@ -161,7 +168,31 @@ namespace DistributedMatrix
     init_col_idx = 1;
     // Setup descriptor arrays for block cyclic distribution.
     desc.resize(9);
-    initialise_descriptor(desc, Grid, local_nrows, local_ncols);
+    // Currently only read in data contiguously in parallel.
+    // For C ordered arrays this means we have read in chunks of rows. For this to make
+    // sense from Fortran's perspective, we would have had to read in columns of the
+    // transpose of the matrix. This is what we want for Column cyclic blacs grid, so just
+    // swap dims to ensure everything is set up approriately.
+    // Only works for reading of columns from C ordered array.
+    if (row_major && parallel) {
+      int tmp = nrows;
+      nrows = ncols;
+      ncols = tmp;
+    }
+    if (row_major && parallel) {
+      initialise_descriptor(desc, Grid, local_nrows, local_ncols, nrows, hyp_chunk);
+    } else {
+      initialise_descriptor(desc, Grid, local_nrows, local_ncols);
+    }
+    if (Grid.rank == 0) {
+      if (row_major && parallel) std::cout << " * Reinterpreting matrix in Fortran format." << std::endl;
+      std::cout << " * Matrix shape: (" << nrows << ", " << ncols << ")" << std::endl;
+      if (parallel) {
+        std::cout << " * Local shape (on root processor): (" << local_nrows << ", " << local_ncols << ")" << std::endl;
+      }
+      std::cout << "#################################################" << std::endl;
+      std::cout << std::endl;
+    }
   }
 
   // setup desc for given blacs context arrays.
