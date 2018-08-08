@@ -10,6 +10,7 @@
 #include "context_handler.h"
 #include "matrix_operations.h"
 #include "utils.h"
+#include "logging.h"
 
 namespace InterpolatingVectors
 {
@@ -109,21 +110,7 @@ namespace InterpolatingVectors
 #ifndef NDEBUG
     // Print out pseudo density matrices.
     MatrixOperations::redistribute(Pua, BH.Square, BH.Root, true);
-    if (BH.rank == 0) {
-      MatrixOperations::local_transpose(Pua, false);
-      MatrixOperations::swap_dims(Pua);
-      std::cout << " * DEBUG: Writing pseudo density matrices to file." << std::endl;
-      H5::Exception::dontPrint();
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      try {
-        H5::Group base = file.createGroup("/Hamiltonian");
-      } catch (H5::FileIException) {
-        H5::Group base = file.openGroup("/Hamiltonian");
-      }
-      Pua.dump_data(file, "/Hamiltonian/THC", prfx+"Pua");
-      MatrixOperations::local_transpose(Pua, true);
-      MatrixOperations::swap_dims(Pua);
-    }
+    Logging::dump_matrix(Pua, output_file, prfx+"Pua", false, BH.rank==0);
     // Transpose back to Fortran order.
     MatrixOperations::redistribute(Pua, BH.Root, BH.Square, true, 64, 64);
 #endif
@@ -140,22 +127,8 @@ namespace InterpolatingVectors
     }
 #ifndef NDEBUG
     MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
-    if (BH.rank == 0) {
-      MatrixOperations::local_transpose(CZt, false);
-      MatrixOperations::swap_dims(CZt);
-      std::cout << " * DEBUG: Writing CZt to file." << std::endl;
-      H5::Exception::dontPrint();
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      try {
-        H5::Group base = file.createGroup("/Hamiltonian");
-      } catch (H5::FileIException) {
-        H5::Group base = file.openGroup("/Hamiltonian");
-      }
-      CZt.dump_data(file, "/Hamiltonian/THC", prefix+"CZt");
-      MatrixOperations::local_transpose(CZt, true);
-      MatrixOperations::swap_dims(CZt);
-    }
-    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true, 64, 64);
+    Logging::dump_matrix(CZt, output_file, prefix+"CZt", false, BH.rank==0);
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, false, 64, 64);
 #endif
   }
 
@@ -195,22 +168,7 @@ namespace InterpolatingVectors
     MatrixOperations::redistribute(CZt, BH.Column, BH.Square, true, 64, 64);
 #ifndef NDEBUG
     // Print out CCt matrices.
-    if (BH.rank == 0) {
-      MatrixOperations::local_transpose(CCt, false);
-      MatrixOperations::swap_dims(CCt);
-      std::cout << " * DEBUG: Writing CCt matrix to file." << std::endl;
-      H5::Exception::dontPrint();
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      try {
-        H5::Group base = file.createGroup("/Hamiltonian");
-      } catch (H5::FileIException) {
-        H5::Group base = file.openGroup("/Hamiltonian");
-      }
-      CCt.dump_data(file, "/Hamiltonian/THC", prefix+"CCt");
-    MatrixOperations::local_transpose(CCt, true);
-    MatrixOperations::swap_dims(CCt);
-    }
-    // Transpose back to Fortran order.
+    Logging::dump_matrix(CCt, output_file, prefix+"CCt", false, BH.rank==0);
 #endif
     if (BH.rank == 0) {
       std::cout << " * Redistributing CCt block cyclically." << std::endl;
@@ -365,44 +323,16 @@ namespace InterpolatingVectors
     // interpolating vectors.
 #ifndef NDEBUG
     MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
-    if (BH.rank == 0) {
-      MatrixOperations::local_transpose(CZt, false);
-      MatrixOperations::swap_dims(CZt);
-      std::cout << " * DEBUG: Writing matrix of interpolating vectors to file." << std::endl;
-      H5::Exception::dontPrint();
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      try {
-        H5::Group base = file.createGroup("/Hamiltonian");
-      } catch (H5::FileIException) {
-        H5::Group base = file.openGroup("/Hamiltonian");
-      }
-      CZt.dump_data(file, "/Hamiltonian/THC", prefix+"IVecs");
-      MatrixOperations::local_transpose(CZt, true);
-      MatrixOperations::swap_dims(CZt);
-    }
+    Logging::dump_matrix(CZt, output_file, prefix+"IVecs", false, BH.rank==0);
     MatrixOperations::redistribute(CZt, BH.Root, BH.Square, true, 64, 64);
 #endif
     bool hermi = true;
     MatrixOperations::transpose(CZt, BH.Square, hermi);
     //MatrixOperations::swap_dims(CZt);
 #ifndef NDEBUG
-    // Print out pseudo density matrices.
+    // Print out Hermitian conjugate of interpolating vectors.
     MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
-    if (BH.rank == 0) {
-      MatrixOperations::local_transpose(CZt, false);
-      MatrixOperations::swap_dims(CZt);
-      std::cout << " * DEBUG: Writing FFTd interpolating matrix to file." << std::endl;
-      H5::Exception::dontPrint();
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      try {
-        H5::Group base = file.createGroup("/Hamiltonian");
-      } catch (H5::FileIException) {
-        H5::Group base = file.openGroup("/Hamiltonian");
-      }
-      CZt.dump_data(file, "/Hamiltonian/THC", prefix+"IVecs_conj");
-      MatrixOperations::local_transpose(CZt, true);
-      MatrixOperations::swap_dims(CZt);
-    }
+    Logging::dump_matrix(CZt, output_file, prefix+"IVecs_conj", false, BH.rank==0);
     // Transpose back to Fortran order.
     MatrixOperations::redistribute(CZt, BH.Root, BH.Square);
 #endif
@@ -444,23 +374,9 @@ namespace InterpolatingVectors
       }
     }
 #ifndef NDEBUG
-    // Print out pseudo density matrices.
+    // Print out FFTd interpolating vectors matrices.
     MatrixOperations::redistribute(CZt, BH.Column, BH.Root);
-    if (BH.rank == 0) {
-      MatrixOperations::local_transpose(CZt, false);
-      MatrixOperations::swap_dims(CZt);
-      std::cout << " * DEBUG: Writing FFTd interpolating matrix to file." << std::endl;
-      H5::Exception::dontPrint();
-      H5::H5File file = H5::H5File(output_file.c_str(), H5F_ACC_RDWR);
-      try {
-        H5::Group base = file.createGroup("/Hamiltonian");
-      } catch (H5::FileIException) {
-        H5::Group base = file.openGroup("/Hamiltonian");
-      }
-      CZt.dump_data(file, "/Hamiltonian/THC", prefix+"IVG");
-      MatrixOperations::local_transpose(CZt, true);
-      MatrixOperations::swap_dims(CZt);
-    }
+    Logging::dump_matrix(CZt, output_file, prefix+"IVG", false, BH.rank==0);
     // Transpose back to Fortran order.
     MatrixOperations::redistribute(CZt, BH.Root, BH.Column);
 #endif
