@@ -118,6 +118,7 @@ def init_from_chkfile(chkfile):
     # construct
     kmf = scf.KRHF(cell, kpts)
     try:
+        # fh5 = h5py.File(chkfile, 'r')
         # kmf.mo_occ = get_kpoint_data(fh5, 'scf/mo_occ__from_list__/')
         # kmf.mo_coeff = get_kpoint_data(fh5, 'scf/mo_coeff__from_list__/')
         # kmf.mo_energy = get_kpoint_data(fh5, 'scf/mo_energy__from_list__/')
@@ -560,17 +561,17 @@ def supercell_molecular_orbitals(fock, CikJ, S):
     (mo_energies, mo_orbs) = scipy.linalg.eigh(ortho_fock_sc)
     return (mo_energies, mo_orbs, AORot)
 
-def supercell_molecular_orbitals_uhf(AORot, fock, CikJ):
+def supercell_molecular_orbitals_uhf(fock, CikJ, S):
     # Extend to large block matrix.
-    (tmp_energies, tmp_mo_orbs) = supercell_molecular_orbitals(AORot, fock[0], CikJ)
+    (tmp_energies, tmp_mo_orbs, A1) = supercell_molecular_orbitals_mo_basis(fock[0], CikJ, S)
     mo_energies = numpy.zeros(shape=((2,)+tmp_energies.shape),
                               dtype=tmp_energies.dtype)
     mo_orbs = numpy.zeros(shape=((2,)+tmp_mo_orbs.shape),
                           dtype=tmp_mo_orbs.dtype)
     mo_energies[0] = numpy.copy(tmp_energies)
     mo_orbs[0] = numpy.copy(tmp_mo_orbs)
-    (mo_energies[1], mo_orbs[1]) = supercell_molecular_orbitals(AORot, fock[1], CikJ)
-    return (mo_energies, mo_orbs)
+    (mo_energies[1], mo_orbs[1], A2) = supercell_molecular_orbitals_mo_basis(fock[1], CikJ, S)
+    return (mo_energies, mo_orbs, A1)
 
 def dump_thc_data_sc(scf_dump, ortho_ao=False, wfn_file='wfn.dat',
                      orbital_file='orbitals.h5', ngs=None):
@@ -590,6 +591,8 @@ def dump_thc_data(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
                   wfn_file='wfn.dat', orbital_file='orbitals.h5', ngs=None,
                   kpoint_grid=None):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
+    if len(kpts.shape) == 1:
+        kpts = numpy.reshape(kpts, (1,-1))
     nkpts = len(kpts)
     if kpoint_grid is None:
         ncopy = num_copy(nkpts)
@@ -599,6 +602,8 @@ def dump_thc_data(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
     (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, nks)
     s1e = lib.asarray(cell.pbc_intor('cint1e_ovlp_sph', hermi=1, kpts=kpts))
     if uhf:
+        nmo = fock.shape[-1]
+        fock = numpy.reshape(fock, (2, -1, nmo, nmo))
         (mo_energies, mo_orbs, AORot) = supercell_molecular_orbitals_uhf(fock, CikJ, s1e)
     elif mos:
         (mo_energies, mo_orbs, AORot) = supercell_molecular_orbitals_mo_basis(fock, CikJ, s1e)
@@ -644,6 +649,38 @@ def test_mos(scf_dump):
     print ("ecore mo: ", 2*numpy.einsum('ji,ji->', hcore_mo.conj(), G),
             G.trace())
 
+def test_hcore(hcore, rdm, fock, cell, kpts, mf, kpoint_grid=None):
+    nkpts = len(kpts)
+    if kpoint_grid is None:
+        ncopy = num_copy(nkpts)
+        nks = numpy.array([ncopy]*3)
+    else:
+        nks = numpy.array([int(nk) for nk in kpoint_grid.split()])
+    (CikJ, supercell) = unit_cell_to_supercell(cell, kpts, nks)
+    rdm = scipy.linalg.block_diag(*rdm)
+    s1e = lib.asarray(cell.pbc_intor('cint1e_ovlp_sph', hermi=1, kpts=kpts))
+    S = scipy.linalg.block_diag(*s1e)
+    hcore = scipy.linalg.block_diag(*hcore)
+    # scmf = scf.RHF(supercell)
+    # h1e_sc = scmf.get_hcore()
+    enuc = nkpts * mf.energy_nuc()
+    exxdiv = -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
+    print ("ecore: ", (numpy.einsum('ji,ji->', hcore.conj(), rdm)+enuc+exxdiv)/nkpts)
+    (e,o,A) = supercell_molecular_orbitals_mo_basis(fock, CikJ, s1e)
+    fock = scipy.linalg.block_diag(*fock)
+    fock_sc = (CikJ).dot(fock).dot(CikJ.conj().T)
+    ortho_fock_sc = (A.conj().T).dot(fock_sc).dot(A)
+    eigs, eigv = scipy.linalg.eigh(ortho_fock_sc)
+    # idx = numpy.argmax(abs(eigv.real), axis=0)
+    # eigv[:,eigv[idx,numpy.arange(len(eigs))].real<0] *= -1
+    nup = supercell.nelec[0]
+    psi = eigv[:,:nup]
+    G = (psi.dot(psi.conj().T)).T
+    hcore_sc = CikJ.T.dot(hcore).dot(CikJ.conj().T)
+    # print ("delta hcore: %f"%numpy.max(numpy.abs(h1e_sc-hcore_sc)))
+    hcore_sc_ortho = (A.conj().T).dot(hcore_sc).dot(A)
+    print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho, G)/nkpts, G.trace())
+
 def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
     nkpts = len(kpts)
@@ -679,7 +716,7 @@ def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     # print ("ecore: ", 2*numpy.einsum('ij,ij->', hcore, rdm2))
     scmf = scf.RHF(supercell)
     # print ("RHF")
-    h1e_sc = scmf.get_hcore()
+    # h1e_sc = scmf.get_hcore()
     # print ("HCORE")
     # rdm_sc = CikJ.dot(rdm).dot(CikJ.conj().T)
     # S_sc = CikJ.dot(S).dot(CikJ.conj().T)
@@ -727,9 +764,9 @@ def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     psi = ev4[:,:nup]
     G = (psi.dot(psi.conj().T)).T
     hcore_sc = CikJ.T.dot(hcore).dot(CikJ.conj().T)
-    print ("diff: ", numpy.max(hcore_sc-h1e_sc))
+    # print ("diff: ", numpy.max(hcore_sc-h1e_sc))
     hcore_sc_ortho = (A.conj().T).dot(hcore_sc).dot(A)
-    hcore_sc_ortho = 0.5*(hcore_sc_ortho+hcore_sc_ortho.conj().T)
+    # hcore_sc_ortho = 0.5*(hcore_sc_ortho+hcore_sc_ortho.conj().T)
     print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho, G), G.trace())
     # hcore_sc_ortho2 = (A.conj().T).dot(h1e_sc).dot(A)
     # print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho2, G), G.trace())
