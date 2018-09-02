@@ -30,6 +30,14 @@ void zero(std::vector<T> &vec)
   }
 }
 
+template <typename T>
+void add_constant(std::vector<T> &vec, T a)
+{
+  for (int i = 0; i < vec.size(); i++) {
+    vec[i] += a;
+  }
+}
+
 inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
 {
   double diff = 0.0;
@@ -507,15 +515,16 @@ int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool wr
 }
 
 // QR decomposition with column pivoting.
+// Currently only returns permutation vector.
 template <class T>
-int qrcp(DistributedMatrix::Matrix<T> &A, std::vector<int> perm,
+int qrcp(DistributedMatrix::Matrix<T> &A, std::vector<int> &perm,
          ContextHandler::BlacsGrid &BG, bool write=false)
 {
-  perm.resize(A.ncols-1);
-  std::vector<std::complex<double> > TAU(std::min(A.nrows, A.ncols)-1);
+  perm.resize(A.ncols);
+  std::vector<std::complex<double> > TAU(std::min(A.nrows, A.ncols));
   std::vector<std::complex<double> > WORK(1); 
   std::vector<double> RWORK(1); 
-  int lwork, lrwork;
+  int lwork = -1, lrwork = -1;
   int info; 
   // First perform workspace query.
   pzgeqpf_(&A.nrows, &A.ncols,
@@ -524,17 +533,19 @@ int qrcp(DistributedMatrix::Matrix<T> &A, std::vector<int> perm,
            TAU.data(),
            WORK.data(), &lwork, RWORK.data(), &lrwork,
            &info);
-  // Setup workspace arrays.
   lwork = int(WORK[0].real());
   WORK.resize(lwork);
   lrwork = int(RWORK[0]);
-  WORK.resize(lrwork);
+  RWORK.resize(lrwork);
+  // Perform QRCP decomposition.
   pzgeqpf_(&A.nrows, &A.ncols,
            A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
            perm.data(),
            TAU.data(),
            WORK.data(), &lwork, RWORK.data(), &lrwork,
            &info);
+  // perm will be contain fortran index so subtract one.
+  add_constant(perm, -1);
   return info;
 }
 

@@ -25,5 +25,11 @@ extern "C" {
                double *S, double *rcond, int *rank,
                std::complex<double> *WORK, int *lwork, double *RWORK,
                int *info);
+  void zgeqpf_(int *m, int *n,
+               std::complex<double> *a, int *lda,
+               int *ipiv,
+               std::complex<double> *tau,
+               std::complex<double> *work, double *rwork,
+               int *info);
 }
 #endif

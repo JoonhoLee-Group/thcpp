@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "kmeans.h"
 #include "interpolating_vectors.h"
+#include "qrcp.h"
 
 int main(int argc, char** argv)
 {
@@ -40,24 +41,28 @@ int main(int argc, char** argv)
   UTILS::parse_simple_opts(input_data, rank, thc_cfac, thc_half_cfac, half_rotated);
   // 1. Determine interpolating points using Veronoi tesselation / KMeans.
   std::vector<int> interp_indxs;
+  //{
+    //InterpolatingPoints::KMeans KMeansSolver(input_data, thc_cfac, BH);
+    //KMeansSolver.kernel(BH, interp_indxs);
+  //}
   {
-    InterpolatingPoints::KMeans KMeansSolver(input_data, thc_cfac, BH);
-    KMeansSolver.kernel(BH, interp_indxs);
+    QRCP::QRCPSolver QRCPSolver(input_data, thc_cfac, BH);
+    QRCPSolver.kernel(BH, interp_indxs);
   }
   // 2. Determine interpolating vectors via least squares.
   {
     InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs, false, true);
     IVSolver.kernel(BH);
   }
-  if (half_rotated) {
-    if (thc_half_cfac != thc_cfac) {
-      InterpolatingPoints::KMeans KMeansSolver(input_data, thc_half_cfac, BH);
-      KMeansSolver.kernel(BH, interp_indxs);
-    }
-    InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs, true, false);
-    IVSolver.kernel(BH);
-    if (BH.rank == 0) IVSolver.dump_qmcpack_data(thc_cfac, thc_half_cfac, BH);
-  }
+  //if (half_rotated) {
+    //if (thc_half_cfac != thc_cfac) {
+      //InterpolatingPoints::KMeans KMeansSolver(input_data, thc_half_cfac, BH);
+      //KMeansSolver.kernel(BH, interp_indxs);
+    //}
+    //InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs, true, false);
+    //IVSolver.kernel(BH);
+    //if (BH.rank == 0) IVSolver.dump_qmcpack_data(thc_cfac, thc_half_cfac, BH);
+  //}
   if (BH.rank == 0) {
     // Simple qmcpack data (hcore, dimensions etc.)
     std::cout << " * Total simulation time : " << (clock()-sim_time) / CLOCKS_PER_SEC << " seconds." << std::endl;
