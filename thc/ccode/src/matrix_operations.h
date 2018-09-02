@@ -506,5 +506,37 @@ int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool wr
   return A.nrows - null;
 }
 
+// QR decomposition with column pivoting.
+template <class T>
+int qrcp(DistributedMatrix::Matrix<T> &A, std::vector<int> perm,
+         ContextHandler::BlacsGrid &BG, bool write=false)
+{
+  perm.resize(A.ncols-1);
+  std::vector<std::complex<double> > TAU(std::min(A.nrows, A.ncols)-1);
+  std::vector<std::complex<double> > WORK(1); 
+  std::vector<double> RWORK(1); 
+  int lwork, lrwork;
+  int info; 
+  // First perform workspace query.
+  pzgeqpf_(&A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           perm.data(),
+           TAU.data(),
+           WORK.data(), &lwork, RWORK.data(), &lrwork,
+           &info);
+  // Setup workspace arrays.
+  lwork = int(WORK[0].real());
+  WORK.resize(lwork);
+  lrwork = int(RWORK[0]);
+  WORK.resize(lrwork);
+  pzgeqpf_(&A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           perm.data(),
+           TAU.data(),
+           WORK.data(), &lwork, RWORK.data(), &lrwork,
+           &info);
+  return info;
+}
+
 }
 #endif
