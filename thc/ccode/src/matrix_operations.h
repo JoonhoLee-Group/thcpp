@@ -487,7 +487,21 @@ inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<
            VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
            WORK.data(), &lwork, RWORK.data(),
            &info);
-  return info;
+  if (info < 0) {
+    std::cout << " * WARNING: SVD Failed." << std::endl;
+    std::cout << "  * " << -info << "th argument had illegal value." << std::endl;
+    return -1;
+  } else if (info > 0) {
+    std::cout << " * WARNING: SVD Failed." << std::endl;
+    std::cout << "  * " << "ZBDSQR did not converge." << std::endl;
+    if (info == std::min(A.nrows, A.ncols)+1) {
+      std::cout << "  * Eigenvalues are not consistent across processor grid." << std::endl;
+      std::cout << "  * Result cannot be trusted." << std::endl;
+    }
+    return -1;
+  } else {
+    return info;
+  }
 }
 
 template <class T>
@@ -504,7 +518,7 @@ int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool wr
   if (BG.rank == 0 && write) {
     std::cout << "Singular values." << std::endl;
     for (int i = 0; i < S.size(); i++) {
-      std::cout << i << " " << S[i] << std::endl;
+      std::cout << "SV " << i << " " << S[i] << std::endl;
     }
   }
   int null = 0;
