@@ -136,6 +136,7 @@ namespace DistributedMatrix
                                         Grid.rank, Grid.nprocs, hyp_chunk);
         if (Grid.rank == 0) std::cout << " * Reading matrix in parallel." << std::endl;
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     tread = clock() - tread;
     if (Grid.rank == 0) {
         std::cout << " * Time taken to read matrix: " << " " << tread / CLOCKS_PER_SEC << " seconds" << std::endl;

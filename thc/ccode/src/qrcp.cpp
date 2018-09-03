@@ -18,9 +18,14 @@ namespace QRCP
   QRCPSolver::QRCPSolver(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
-      filename = input.at("orbital_file").get<std::string>();
+      input_file = input.at("orbital_file").get<std::string>();
+      filename_size = input_file.size();
     }
     thc_cfac = cfac;
+    MPI_Bcast(&filename_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&thc_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (BH.rank != 0) input_file.resize(filename_size);
+    MPI_Bcast(&input_file[0], input_file.size()+1, MPI_CHAR, 0, MPI_COMM_WORLD);
   }
 
   // Main driver to find interpolating vectors via QRCP solve.
@@ -32,12 +37,13 @@ namespace QRCP
     // Will read into [M,N_G] matrix in FTN format.
     // just explicitly construct Z for now and reproduce scipy.
     // (M, Ngrid).
-    DistributedMatrix::Matrix<std::complex<double> > aoR(filename, "aoR",
+    DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR",
                                                          BH.Column, true, true);
     int nbasis = aoR.nrows;
     int M2 = nbasis * nbasis;
-    num_interp_pts = thc_cfac * nbasis;
-    DistributedMatrix::Matrix<std::complex<double> > ZT(M2, aoR.ncols, BH.Root);
+    int ncols_per_block = ceil((double)aoR.ncols/BH.nprocs);
+    DistributedMatrix::Matrix<std::complex<double> > ZT(M2, aoR.ncols, BH.Column,
+                                                        M2, ncols_per_block);
     // Construct ZT matrix
     // [ZT]_{(ik)a} = \phi_i^*(r_a) \phi_k(r_a).
     // [todo]: replace with dger eventually.
@@ -45,6 +51,7 @@ namespace QRCP
     if (BH.rank == 0) {
       std::cout << " * Constructing Z matrix." << std::endl;
     }
+    double tzmat = clock();
     for (int a = 0; a < ZT.local_ncols; a++) {
       for (int i = 0; i < nbasis; i++) {
         for (int k = 0; k < nbasis; k++) {
@@ -52,20 +59,28 @@ namespace QRCP
         }
       }
     }
-    //MatrixOperations::redistribute(ZT, BH.Column, BH.Root);
+    tzmat = clock() - tzmat;
+    if (BH.rank == 0) {
+      std::cout << "  * Time to construct Z matrix: " << tzmat / CLOCKS_PER_SEC << std::endl;
+      std::cout << " * Redistributing ZT block cyclically. " << std::endl;
+    }
+    MatrixOperations::redistribute(ZT, BH.Column, BH.Square, true, 64, 64);
     std::vector<int> perm;
     if (BH.rank == 0) {
       std::cout << " * Performing QRCP solve." << std::endl;
     }
     MatrixOperations::qrcp(ZT, perm, BH.Root);
+    int num_interp_pts = thc_cfac * nbasis;
     interp_indxs.resize(num_interp_pts);
-    std::copy(perm.begin(), perm.begin()+num_interp_pts, interp_indxs.data());
-    std::sort(interp_indxs.begin(), interp_indxs.end());
+    if (BH.rank == 0) {
+      std::copy(perm.begin(), perm.begin()+num_interp_pts, interp_indxs.data());
+      std::sort(interp_indxs.begin(), interp_indxs.end());
 #ifndef NDEBUG
-    for (int i = 0; i < interp_indxs.size(); i++) {
-      std::cout << interp_indxs[i] << std::endl;
-    }
+      for (int i = 0; i < interp_indxs.size(); i++) {
+        std::cout << interp_indxs[i] << std::endl;
+      }
 #endif
+    }
   }
 
   // Destructor.

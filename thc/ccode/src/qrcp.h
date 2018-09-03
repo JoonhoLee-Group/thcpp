@@ -18,8 +18,8 @@ namespace QRCP
       void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs);
     private:
       // Variables
-      std::string filename;
-      int num_interp_pts, num_grid_pts;
+      std::string input_file;
+      int filename_size;
       int thc_cfac;
   };
 }
