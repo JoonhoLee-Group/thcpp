@@ -665,7 +665,7 @@ def test_hcore(hcore, rdm, fock, cell, kpts, mf, kpoint_grid=None):
     # h1e_sc = scmf.get_hcore()
     enuc = nkpts * mf.energy_nuc()
     exxdiv = -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
-    print ("ecore: ", (numpy.einsum('ji,ji->', hcore.conj(), rdm)+enuc+exxdiv)/nkpts)
+    print ("ecore: ", (numpy.einsum('ji,ji->', hcore.conj(), rdm))/nkpts)
     (e,o,A) = supercell_molecular_orbitals_mo_basis(fock, CikJ, s1e)
     fock = scipy.linalg.block_diag(*fock)
     fock_sc = (CikJ).dot(fock).dot(CikJ.conj().T)
