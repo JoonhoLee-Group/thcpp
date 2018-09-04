@@ -474,11 +474,29 @@ inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<
            VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
            WORK.data(), &lwork, RWORK.data(),
            &info);
+  //zgesvd_(&jobu, &jobvt,
+           //&A.nrows, &A.ncols,
+           //A.store.data(), &A.nrows,
+           //S.data(),
+           //U.store.data(), &U.nrows,
+           //VT.store.data(), &VT.nrows,
+           //WORK.data(), &lwork, RWORK.data(),
+           //&info);
+  //std::cout << info << " " << WORK[0] << " " << RWORK[0] << " " << A.store.size() << " " << A.nrows << " " << A.ncols << std::endl;
   // Actual computation
   lwork = int(WORK[0].real());
   WORK.resize(lwork);
   int lrwork = int(RWORK[0]);
   RWORK.resize(lrwork);
+  //RWORK.resize(5*std::min(A.nrows, A.ncols));
+  //zgesvd_(&jobu, &jobvt,
+           //&A.nrows, &A.ncols,
+           //A.store.data(), &A.nrows,
+           //S.data(),
+           //U.store.data(), &U.nrows,
+           //VT.store.data(), &VT.nrows,
+           //WORK.data(), &lwork, RWORK.data(),
+           //&info);
   pzgesvd_(&jobu, &jobvt,
            &A.nrows, &A.ncols,
            A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
@@ -536,10 +554,10 @@ int qrcp(DistributedMatrix::Matrix<T> &A, std::vector<int> &perm,
 {
   perm.resize(A.ncols);
   std::vector<std::complex<double> > TAU(std::min(A.nrows, A.ncols));
-  std::vector<std::complex<double> > WORK(1); 
-  std::vector<double> RWORK(1); 
+  std::vector<std::complex<double> > WORK(1);
+  std::vector<double> RWORK(1);
   int lwork = -1, lrwork = -1;
-  int info; 
+  int info;
   // First perform workspace query.
   pzgeqpf_(&A.nrows, &A.ncols,
            A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
