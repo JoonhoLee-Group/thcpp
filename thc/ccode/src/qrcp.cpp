@@ -116,9 +116,6 @@ namespace QRCP
     MatrixOperations::redistribute(ZT, BH.Column, BH.Square, true, 64, 64);
     //MatrixOperations::redistribute(ZZT, BH.Column, BH.Square, true, 64, 64);
     std::vector<int> perm;
-    if (BH.rank == 0) {
-      std::cout << " * Performing QRCP solve." << std::endl;
-    }
     //int rank = MatrixOperations::rank(ZZT, BH.Square, true);
     MatrixOperations::qrcp(ZT, perm, BH.Square);
     int num_interp_pts = thc_cfac * nbasis;
