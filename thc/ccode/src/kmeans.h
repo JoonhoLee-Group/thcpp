@@ -34,6 +34,7 @@ namespace KMeans
       int thc_cfac;
       int ndim;
       unsigned int rng_seed;
+      std::string density_label;
       // temporary storage.
       std::vector<double> deltas, weights, global_weights, global_centroids;
   };

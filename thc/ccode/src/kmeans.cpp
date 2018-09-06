@@ -29,6 +29,14 @@ namespace KMeans
         std::cout << " * Setting RNG seed to : " << rng_seed << std::endl;
         std::cout << std::endl;
       }
+      try {
+        density_label = kmeans.at("density").get<std::string>();
+      }
+      catch (nlohmann::json::out_of_range& error) {
+        density_label = "density";
+        std::cout << " * Density not specified." << std::endl;
+        std::cout << " * Using full basis set for density." << std::endl;
+      }
     }
     MPI_Bcast(&max_it, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&threshold, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -169,7 +177,7 @@ namespace KMeans
     // real space grid.
     DistributedMatrix::Matrix<double> grid(filename, "real_space_grid", BH.Root);
     // "electron density" from supercell atomic orbitals.
-    DistributedMatrix::Matrix<double> density(filename, "density", BH.Root);
+    DistributedMatrix::Matrix<double> density(filename, density_label, BH.Root);
     std::vector<hsize_t> dims(2);
     if (BH.rank == 0) H5Helper::read_dims(filename, "aoR", dims);
     MPI_Bcast(dims.data(), dims.size(), MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
