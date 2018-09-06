@@ -8,9 +8,9 @@
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
 
-namespace InterpolatingPoints
+namespace KMeans 
 {
-  class KMeans
+  class KMeansSolver
   {
     public:
       KMeans(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH);

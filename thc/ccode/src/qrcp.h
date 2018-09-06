@@ -15,7 +15,8 @@ namespace QRCP
     public:
       QRCPSolver(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH);
       ~QRCPSolver();
-      void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs);
+      void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs,
+                  int thc_cfac, bool half_rotate=false);
     private:
       // Variables
       std::string input_file;

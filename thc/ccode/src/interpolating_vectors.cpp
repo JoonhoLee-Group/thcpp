@@ -14,7 +14,8 @@
 
 namespace InterpolatingVectors
 {
-  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, bool rotate, bool append)
+  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs,
+               bool rotate, bool append)
   {
     int filename_size;
     if (BH.rank == 0) {

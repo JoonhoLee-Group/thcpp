@@ -15,21 +15,22 @@
 namespace QRCP
 {
   // Constructor.
-  QRCPSolver::QRCPSolver(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH)
+  QRCPSolver::QRCPSolver(nlohmann::json &input, ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
+      input_optiosn = input;
       input_file = input.at("orbital_file").get<std::string>();
       filename_size = input_file.size();
     }
     thc_cfac = cfac;
     MPI_Bcast(&filename_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&thc_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
     if (BH.rank != 0) input_file.resize(filename_size);
     MPI_Bcast(&input_file[0], input_file.size()+1, MPI_CHAR, 0, MPI_COMM_WORLD);
   }
 
   // Main driver to find interpolating vectors via QRCP solve.
-  void QRCPSolver::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
+  void QRCPSolver::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs,
+                          int thc_cfac, bool half_rotate)
   {
     if (BH.rank == 0) {
       std::cout << " * Finding interpolating points via QRCP." << std::endl;
@@ -39,6 +40,7 @@ namespace QRCP
     // (M, Ngrid).
     DistributedMatrix::Matrix<std::complex<double> > aoR(input_file, "aoR",
                                                          BH.Column, true, true);
+    // half rotate!
     int nbasis = aoR.nrows;
     int M2 = nbasis * nbasis;
     int ncols_per_block = ceil((double)aoR.ncols/BH.nprocs);

@@ -11,16 +11,16 @@
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
 
-namespace InterpolatingPoints
+namespace KMeans  
 {
-  KMeans::KMeans(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH)
+  KMeansSolver::KMeansSolver(nlohmann::json &input, ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
       filename = input.at("orbital_file").get<std::string>();
-      max_it = input.at("kmeans").at("max_it").get<int>();
-      threshold = input.at("kmeans").at("threshold").get<double>();
+      max_it = input.at("max_it").get<int>();
+      threshold = input.at("threshold").get<double>();
       try {
-        rng_seed = input.at("kmeans").at("rng_seed").get<int>();
+        rng_seed = input.at("rng_seed").get<int>();
       }
       catch (nlohmann::json::out_of_range& error) {
         std::cout << " * RNG seed not set in input file." << std::endl;
@@ -31,7 +31,6 @@ namespace InterpolatingPoints
     }
     MPI_Bcast(&max_it, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&threshold, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    thc_cfac = cfac;
     ndim = 3;
   }
 

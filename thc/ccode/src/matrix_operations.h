@@ -229,6 +229,15 @@ inline int cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
 }
 
 template <typename T>
+inline void swap_dims(DistributedMatrix::Matrix<T> &A)
+{
+  int tmp_row = A.nrows;
+  A.nrows = A.ncols;
+  A.ncols = tmp_row;
+}
+
+
+template <typename T>
 inline void local_transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
 {
   std::vector<T> tmp(A.ncols*A.nrows);
@@ -247,14 +256,6 @@ inline void local_transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true
   }
   A.store.swap(tmp);
   swap_dims(A);
-}
-
-template <typename T>
-inline void swap_dims(DistributedMatrix::Matrix<T> &A)
-{
-  int tmp_row = A.nrows;
-  A.nrows = A.ncols;
-  A.ncols = tmp_row;
 }
 
 inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT, bool hermi=false)
