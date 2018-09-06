@@ -13,10 +13,10 @@ namespace InterpolatingPoints
   {
     public:
       IPoints(nlohmann::json &input_file, ContextHandler::BlacsHandler &BH);
-      std::vector<int> kernel(ContextHandler::BlacsHandler &BH, int thc_cfac, bool half_rotate=false);
+      std::vector<int> kernel(nlohmann::json &input_file, ContextHandler::BlacsHandler &BH, int thc_cfac, bool half_rotate=false);
+
     private:
       bool kmeans = false, qrcp = false;
-      bool nlohmann::json input_options;
-  }
+  };
 }
 #endif

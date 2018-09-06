@@ -13,7 +13,7 @@ namespace QRCP
   class QRCPSolver
   {
     public:
-      QRCPSolver(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH);
+      QRCPSolver(nlohmann::json &input, ContextHandler::BlacsHandler &BH);
       ~QRCPSolver();
       void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs,
                   int thc_cfac, bool half_rotate=false);

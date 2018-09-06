@@ -12,7 +12,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 include_directories("${PROJECT_SOURCE_DIR}")
 
 add_executable(thcpp.x src/h5helper.cpp src/context_handler.cpp
-    src/kmeans.cpp src/qrcp.cpp src/interpolating_vectors.cpp src/main.cpp
+               src/kmeans.cpp src/qrcp.cpp src/interpolating_points.cpp
+               src/interpolating_vectors.cpp src/main.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp)
 
 include(GetGitRevisionDescription)

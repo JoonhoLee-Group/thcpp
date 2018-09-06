@@ -13,6 +13,7 @@
 #include "h5helper.h"
 #include "utils.h"
 #include "interpolating_vectors.h"
+#include "interpolating_points.h"
 
 int main(int argc, char** argv)
 {
@@ -36,10 +37,11 @@ int main(int argc, char** argv)
   }
   int thc_cfac, thc_half_cfac;
   bool half_rotate;
-  UTILS::parse_simple_opts(input, BH.rank, thc_cfac, thc_half_cfac, half_rotate);
+  std::vector<int> interp_indxs;
+  UTILS::parse_simple_opts(input_data, BH.rank, thc_cfac, thc_half_cfac, half_rotate);
   // 1. Determine interpolating points for full orbital set.
-  InterpolatingPoints::IPoints(input_data, BH);
-  interp_indxs = IPoints.kernel(BH, thc_cfac, half_rotate);
+  InterpolatingPoints::IPoints IPSolver(input_data, BH);
+  interp_indxs = IPSolver.kernel(input_data, BH, thc_cfac, half_rotate);
   // 2. Determine interpolating vectors via least squares.
   {
     // Half rotate
@@ -52,8 +54,8 @@ int main(int argc, char** argv)
   }
   if (half_rotate) {
     if (thc_half_cfac != thc_cfac) {
-      InterpolatingPoints::IPoints(input_data, BH);
-      interp_indxs = IPoints.kernel(BH, thc_cfac, half_rotate);
+      InterpolatingPoints::IPoints IP(input_data, BH);
+      interp_indxs = IP.kernel(input_data, BH, thc_cfac, half_rotate);
     }
     bool open_file = false;
     InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs, half_rotate, open_file);

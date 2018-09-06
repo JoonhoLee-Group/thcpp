@@ -34,7 +34,7 @@ namespace KMeans
     ndim = 3;
   }
 
-  void KMeans::scatter_data(std::vector<double> &grid, int num_points, int ndim, ContextHandler::BlacsGrid &BG)
+  void KMeansSolver::scatter_data(std::vector<double> &grid, int num_points, int ndim, ContextHandler::BlacsGrid &BG)
   {
     int num_points_per_proc = num_points / BG.nprocs;
     std::vector<int> send_counts(BG.nprocs), disps(BG.nprocs);
@@ -58,7 +58,7 @@ namespace KMeans
     grid.swap(recv_buf);
   }
 
-  void KMeans::gather_data(std::vector<double> &grid, ContextHandler::BlacsGrid &BG)
+  void KMeansSolver::gather_data(std::vector<double> &grid, ContextHandler::BlacsGrid &BG)
   {
     std::vector<int> recv_counts(BG.nprocs), disps(BG.nprocs);
     int nsend = grid.size();
@@ -76,7 +76,7 @@ namespace KMeans
     grid.swap(recv_buf);
   }
 
-  void KMeans::classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map, bool resize_deltas)
+  void KMeansSolver::classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map, bool resize_deltas)
   {
     double dx, dy, dz;
     if (resize_deltas) deltas.resize(centroids.size()/ndim);
@@ -96,7 +96,7 @@ namespace KMeans
     }
   }
 
-  void KMeans::update_centroids(std::vector<double> &rho, std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map)
+  void KMeansSolver::update_centroids(std::vector<double> &rho, std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map)
   {
     MatrixOperations::zero(weights);
     MatrixOperations::zero(centroids);
@@ -122,7 +122,7 @@ namespace KMeans
     }
   }
 
-  std::vector<int> KMeans::map_to_grid(std::vector<double> &grid, std::vector<double> &centroids)
+  std::vector<int> KMeansSolver::map_to_grid(std::vector<double> &grid, std::vector<double> &centroids)
   {
     std::vector<int> interp_idxs(num_interp_pts);
     classify_grid_points(centroids, grid, interp_idxs, true);
@@ -135,7 +135,7 @@ namespace KMeans
     return interp_idxs;
   }
 
-  void KMeans::guess_initial_centroids(std::vector<double> &grid, std::vector<double> &centroids)
+  void KMeansSolver::guess_initial_centroids(std::vector<double> &grid, std::vector<double> &centroids)
   {
     std::vector<int> tmp(num_grid_pts), indxs(num_interp_pts);
     for (int i = 0; i < grid.size()/ndim; i++) {
@@ -153,7 +153,7 @@ namespace KMeans
     }
   }
 
-  double KMeans::percentage_change(std::vector<int> &new_grid_map, std::vector<int> &old_grid_map)
+  double KMeansSolver::percentage_change(std::vector<int> &new_grid_map, std::vector<int> &old_grid_map)
   {
     int num_changed = 0, total_changed = 0;
     for (int i = 0; i < new_grid_map.size(); i++) {
@@ -163,7 +163,7 @@ namespace KMeans
     return 100 * ((double)total_changed) / num_grid_pts;
   }
 
-  void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
+  void KMeansSolver::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, int thc_cfac)
   {
     // real space grid.
     DistributedMatrix::Matrix<double> grid(filename, "real_space_grid", BH.Root);
@@ -241,7 +241,7 @@ namespace KMeans
     }
     MPI_Barrier(MPI_COMM_WORLD);
   }
-  KMeans::~KMeans()
+  KMeansSolver::~KMeansSolver()
   {
   }
 }

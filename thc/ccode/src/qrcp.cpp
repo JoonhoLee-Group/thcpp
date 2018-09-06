@@ -18,23 +18,23 @@ namespace QRCP
   QRCPSolver::QRCPSolver(nlohmann::json &input, ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
-      input_optiosn = input;
       input_file = input.at("orbital_file").get<std::string>();
       sub_sample = input.at("sub_sample").get<bool>();
       filename_size = input_file.size();
     }
-    thc_cfac = cfac;
     MPI_Bcast(&filename_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
     if (BH.rank != 0) input_file.resize(filename_size);
     MPI_Bcast(&input_file[0], input_file.size()+1, MPI_CHAR, 0, MPI_COMM_WORLD);
   }
-  void setup_Z_matrix(DistributedMatrix::Matrix<std::complex<double> &ZT,
-                      DistributedMatrix<std::complex<double> &aoR)
+  void setup_Z_matrix(DistributedMatrix::Matrix<std::complex<double> > &ZT,
+                      DistributedMatrix::Matrix<std::complex<double> > &aoR)
   {
     // Construct ZT matrix
     // [ZT]_{(ik)a} = \phi_i^*(r_a) \phi_k(r_a).
     // [todo]: replace with dger eventually.
     // Recall, ZT is stored in (fortran) column major order at this point.
+    int nbasis = aoR.nrows;
+    int M2 = ZT.nrows;
     for (int a = 0; a < ZT.local_ncols; a++) {
       for (int i = 0; i < aoR.nrows; i++) {
         for (int k = 0; k < aoR.nrows; k++) {
@@ -43,9 +43,9 @@ namespace QRCP
       }
     }
   }
-  void setup_Z_half_matrix(DistributedMatrix::Matrix<std::complex<double> &ZT,
-                           DistributedMatrix<std::complex<double> &aoR,
-                           DistributedMatrix<std::complex<double> &aoR_half)
+  void setup_Z_half_matrix(DistributedMatrix::Matrix<std::complex<double> > &ZT,
+                           DistributedMatrix::Matrix<std::complex<double> > &aoR,
+                           DistributedMatrix::Matrix<std::complex<double> > &aoR_half)
   {
     // Construct ZT matrix
     // [ZT]_{(ik)a} = \phi_i^*(r_a) \phi_k(r_a).
@@ -120,7 +120,7 @@ namespace QRCP
     interp_indxs.resize(num_interp_pts);
     // Work out diagonal entries.
     MatrixOperations::redistribute(ZT, BH.Square, BH.Column, true,
-                                   M2, ncols_per_block);
+                                   ZT.nrows, ncols_per_block);
     std::vector<double> diag(ZT.local_ncols), global_diag(ZT.ncols);
     int offset = BH.rank * ncols_per_block;
     int max_diag = std::min(ZT.nrows, ZT.ncols);
