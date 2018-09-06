@@ -22,6 +22,8 @@ namespace QRCP
       std::string input_file;
       int filename_size;
       int thc_cfac;
+      // Sub sample rows of Z matrix using random gaussian matrices.
+      bool sub_sample;
   };
 }
 #endif
