@@ -16,7 +16,7 @@ namespace InterpolatingPoints
       std::vector<int> kernel(nlohmann::json &input_file, ContextHandler::BlacsHandler &BH, int thc_cfac, bool half_rotate=false);
 
     private:
-      bool kmeans = false, qrcp = false;
+      std::string solver = "kmeans";
   };
 }
 #endif
