@@ -19,7 +19,12 @@ namespace QRCP
   {
     if (BH.rank == 0) {
       input_file = input.at("orbital_file").get<std::string>();
-      sub_sample = input.at("sub_sample").get<bool>();
+      try {
+        sub_sample = input.at("interpolating_points").at("qrcp").at("sub_sample").get<bool>();
+      }
+      catch (nlohmann::json::out_of_range& error) {
+        std::cout << " * Performing full QRCP decomposition." << std::endl;
+      }
       filename_size = input_file.size();
     }
     MPI_Bcast(&filename_size, 1, MPI_INT, 0, MPI_COMM_WORLD);

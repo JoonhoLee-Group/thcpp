@@ -11,16 +11,17 @@
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
 
-namespace KMeans  
+namespace KMeans
 {
   KMeansSolver::KMeansSolver(nlohmann::json &input, ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
       filename = input.at("orbital_file").get<std::string>();
-      max_it = input.at("max_it").get<int>();
-      threshold = input.at("threshold").get<double>();
+      nlohmann::json kmeans = input.at("interpolating_points").at("kmeans");
+      max_it = kmeans.at("max_it").get<int>();
+      threshold = kmeans.at("threshold").get<double>();
       try {
-        rng_seed = input.at("rng_seed").get<int>();
+        rng_seed = kmeans.at("rng_seed").get<int>();
       }
       catch (nlohmann::json::out_of_range& error) {
         std::cout << " * RNG seed not set in input file." << std::endl;
