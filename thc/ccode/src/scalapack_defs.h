@@ -83,5 +83,6 @@ extern "C" {
                 std::complex<double> *tau,
                 std::complex<double> *work, int *lwork, double *rwork, int *lrwork,
                 int *info);
+  int indxl2g_(int *indxloc, int *nb, int *iproc, int *isrcproc, int *nprocs);
 }
 #endif

@@ -577,9 +577,23 @@ int qrcp(DistributedMatrix::Matrix<T> &A, std::vector<int> &perm,
            TAU.data(),
            WORK.data(), &lwork, RWORK.data(), &lrwork,
            &info);
-  // perm will be contain fortran index so subtract one.
+  // perm will be fortran indexed so subtract one.
   add_constant(perm, -1);
   return info;
+}
+
+inline int global_matrix_col_index(int local_index, ContextHandler::BlacsGrid &BG, int nb)
+{
+  int root = 0;
+  int li = local_index + 1; // C to fortran
+  return indxl2g_(&li, &nb, &BG.col, &root, &BG.ncols) - 1; // fortran to C
+}
+
+inline int global_matrix_row_index(int local_index, ContextHandler::BlacsGrid &BG, int mb)
+{
+  int root = 0;
+  int li = local_index + 1; // C to fortran
+  return indxl2g_(&li, &mb, &BG.row, &root, &BG.nrows) - 1; // fortran to C
 }
 
 }
