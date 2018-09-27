@@ -41,7 +41,7 @@ int main(int argc, char** argv)
   UTILS::parse_simple_opts(input_data, BH.rank, thc_cfac, thc_half_cfac, half_rotate);
   // 1. Determine interpolating points for full orbital set.
   InterpolatingPoints::IPoints IPSolver(input_data, BH);
-  interp_indxs = IPSolver.kernel(input_data, BH, thc_cfac, half_rotate);
+  interp_indxs = IPSolver.kernel(input_data, BH, thc_cfac, false);
   // 2. Determine interpolating vectors via least squares.
   {
     // Half rotate
@@ -55,7 +55,7 @@ int main(int argc, char** argv)
   if (half_rotate) {
     if (thc_half_cfac != thc_cfac) {
       InterpolatingPoints::IPoints IP(input_data, BH);
-      interp_indxs = IP.kernel(input_data, BH, thc_cfac, half_rotate);
+      interp_indxs = IP.kernel(input_data, BH, thc_half_cfac, half_rotate);
     }
     bool open_file = false;
     InterpolatingVectors::IVecs IVSolver(input_data, BH, interp_indxs, half_rotate, open_file);
