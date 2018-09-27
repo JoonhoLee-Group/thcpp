@@ -165,7 +165,11 @@ namespace QRCP
         //diag[i] = std::abs(ZT.store[i*ZT.nrows+i+offset].real());
       //}
     //}
-    //int rank = MatrixOperations::rank(ZZT, BH.Square, true);
+
+    // ZT is distributed block cyclically. Following QRCP procedure perm(i) = k maps
+    // column i of the local matrix to column k in the global matrix. perm is also
+    // effectively distributed block cyclically so we need to order it and map the local
+    // indices i to their corresponding values in the global matrix.
     std::vector<int> ordered_perm = map_perm(perm, ZT.ncols, ZT.local_ncols, BH);
     int num_interp_pts = thc_cfac * nbasis;
     interp_indxs.resize(num_interp_pts);
