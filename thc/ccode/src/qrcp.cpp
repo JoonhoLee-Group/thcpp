@@ -67,6 +67,37 @@ namespace QRCP
       }
     }
   }
+
+  std::vector<int> QRCPSolver::map_perm(std::vector<int> &perm, int ncols, int local_ncols, ContextHandler::BlacsHandler &BH)
+  {
+    std::vector<int> global_index, col_index(ncols), global_perm(ncols);
+    int nz = 0;
+    for (int i = 0; i < local_ncols; ++i) {
+      if (perm[i] >= 0 && BH.Square.row == 0) {
+        nz += 1;
+        global_index.push_back(MatrixOperations::global_matrix_col_index(i, BH.Square, 64));
+      }
+    }
+    std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
+    int num_cols;
+    MPI_Gather(&nz, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    disps[0] = 0;
+    for (int i = 1; i < recv_counts.size(); i++) {
+      disps[i] = disps[i-1] + recv_counts[i-1];
+      if (BH.rank == 0) {
+      }
+    }
+    MPI_Gatherv(global_index.data(), global_index.size(), MPI_INT,
+                col_index.data(), recv_counts.data(), disps.data(), MPI_INT,
+                0, MPI_COMM_WORLD);
+    MPI_Gatherv(perm.data(), nz, MPI_INT,
+                global_perm.data(), recv_counts.data(), disps.data(), MPI_INT,
+                0, MPI_COMM_WORLD);
+    if (BH.rank == 0) {
+      UTILS::sort_a_from_b(global_perm, col_index);
+    }
+    return global_perm;
+  }
   // Main driver to find interpolating vectors via QRCP solve.
   void QRCPSolver::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs,
                           int thc_cfac, bool half_rotate)
@@ -88,13 +119,14 @@ namespace QRCP
     if (half_rotate) {
       DistributedMatrix::Matrix<std::complex<double> > aoR_half(input_file, "aoR_half",
                                                                 BH.Column, true, true);
-      int nelec = aoR.ncols;
+      int nelec = aoR_half.nrows;
       int MN = nbasis * nelec;
       ZT.setup_matrix(MN, aoR.ncols, BH.Column, MN, ncols_per_block);
       setup_Z_half_matrix(ZT, aoR, aoR_half);
     } else {
       int M2 = nbasis * nbasis;
       ZT.setup_matrix(M2, aoR.ncols, BH.Column, M2, ncols_per_block);
+      setup_Z_matrix(ZT, aoR);
     }
     double tzmat = clock();
     tzmat = clock() - tzmat;
@@ -102,14 +134,17 @@ namespace QRCP
       std::cout << "  * Time to construct Z matrix: " << tzmat / CLOCKS_PER_SEC << " seconds." << std::endl;
       std::cout << " * Redistributing ZT block cyclically." << std::endl;
     }
-      //for (int i = 0; i < nbasis; i++) {
-        //for (int k = 0; k < nbasis; k++) {
-          //for (int a = 0; a < ZT.local_ncols; a++) {
-            //std::cout << std::setprecision(16) << ZT.store[a*M2+i*nbasis+k].real() << " ";
+    //if (!half_rotate) {
+        //int M2 = nbasis * nbasis;
+        //for (int i = 0; i < nbasis; i++) {
+          //for (int k = 0; k < nbasis; k++) {
+            //for (int a = 0; a < ZT.local_ncols; a++) {
+              //std::cout << std::setprecision(16) << ZT.store[a*M2+i*nbasis+k].real() << " ";
+            //}
+            //std::cout << "XXX" << std::endl;
           //}
-          //std::cout << "XXX" << std::endl;
         //}
-      //}
+    //}
     //DistributedMatrix::Matrix<std::complex<double> > ZZT(M2, aoR.ncols, BH.Column,
                                                          //M2, ncols_per_block);
     //std::copy(ZT.store.begin(), ZT.store.end(), ZZT.store.begin());
@@ -118,38 +153,42 @@ namespace QRCP
     std::vector<int> perm;
     //int rank = MatrixOperations::rank(ZZT, BH.Square, true);
     MatrixOperations::qrcp(ZT, perm, BH.Square);
+    // Work out diagonal entries.
+    //MatrixOperations::redistribute(ZT, BH.Square, BH.Column, true,
+                                   //ZT.nrows, ncols_per_block);
+    //int offset = BH.rank * ncols_per_block;
+    //int max_diag = std::min(ZT.nrows, ZT.ncols);
+    //int ndiag_per_proc = max_diag - offset;
+    //std::vector<double> diag(local_ncols), global_diag(ZT.ncols);
+    //if (ndiag_per_proc >= 0) {
+      //for (int i = 0; i < max_diag; i++) {
+        //diag[i] = std::abs(ZT.store[i*ZT.nrows+i+offset].real());
+      //}
+    //}
+    //int rank = MatrixOperations::rank(ZZT, BH.Square, true);
+    std::vector<int> ordered_perm = map_perm(perm, ZT.ncols, ZT.local_ncols, BH);
     int num_interp_pts = thc_cfac * nbasis;
     interp_indxs.resize(num_interp_pts);
-    // Work out diagonal entries.
-    MatrixOperations::redistribute(ZT, BH.Square, BH.Column, true,
-                                   ZT.nrows, ncols_per_block);
-    std::vector<double> diag(ZT.local_ncols), global_diag(ZT.ncols);
-    int offset = BH.rank * ncols_per_block;
-    int max_diag = std::min(ZT.nrows, ZT.ncols);
-    int ndiag_per_proc = max_diag - offset;
-    if (ndiag_per_proc >= 0) {
-      for (int i = 0; i < ZT.local_ncols; i++) {
-        diag[i] = std::abs(ZT.store[i*ZT.nrows+i+offset].real());
-      }
-    }
-    std::vector<int> recv_counts(BH.nprocs), disps(BH.nprocs);
-    int num_cols;
-    MPI_Gather(&ZT.local_ncols, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
-    disps[0] = 0;
-    for (int i = 1; i < recv_counts.size(); i++) {
-      disps[i] = disps[i-1] + recv_counts[i-1];
-    }
-    MPI_Gatherv(diag.data(), diag.size(), MPI_DOUBLE,
-                global_diag.data(), recv_counts.data(), disps.data(), MPI_DOUBLE,
-                0, MPI_COMM_WORLD);
     if (BH.rank == 0) {
-      std::copy(perm.begin(), perm.begin()+num_interp_pts, interp_indxs.data());
+      std::copy(ordered_perm.begin(), ordered_perm.begin()+num_interp_pts, interp_indxs.data());
       std::sort(interp_indxs.begin(), interp_indxs.end());
-      int offset = ZT.nrows;
-      for (int i = 0; i < max_diag; i++) {
-        std::cout << "IX: " << i << " " << perm[i] << " " << std::setprecision(16) << global_diag[i] << std::endl;
-      }
+      //for (int i = 0; i < interp_indxs.size(); i++) {
+        ////std::cout << i << " " << MatrixOperations::global_matrix_index(i, BH.Square, 64) << " " << perm[i] << std::endl;
+        //std::cout << i << " " << interp_indxs[i] << std::endl;
+      //}
+      //int offset = ZT.nrows;
+      //std::string prefix;
+      //if (half_rotate) {
+        //prefix = "half_ix";
+      //} else {
+        //prefix = "full_ix";
+      //}
+      //std::cout << max_diag << " " << perm.size() << " " << ZT.nrows << " " << ZT.ncols << std::endl;
+      //for (int i = 0; i < max_diag; i++) {
+        //std::cout << prefix << " " << i << " " << perm[i] << " " << std::setprecision(16) << global_diag[i] << std::endl;
+      //}
     }
+    MPI_Barrier(MPI_COMM_WORLD);
   }
 
   // Destructor.

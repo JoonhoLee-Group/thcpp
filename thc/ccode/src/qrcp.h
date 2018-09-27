@@ -19,6 +19,7 @@ namespace QRCP
                   int thc_cfac, bool half_rotate=false);
     private:
       // Variables
+      std::vector<int> map_perm(std::vector<int> &perm, int ncols, int local_ncols, ContextHandler::BlacsHandler &BH);
       std::string input_file;
       int filename_size;
       int thc_cfac;
