@@ -154,17 +154,20 @@ namespace QRCP
     //int rank = MatrixOperations::rank(ZZT, BH.Square, true);
     MatrixOperations::qrcp(ZT, perm, BH.Square);
     // Work out diagonal entries.
-    //MatrixOperations::redistribute(ZT, BH.Square, BH.Column, true,
-                                   //ZT.nrows, ncols_per_block);
-    //int offset = BH.rank * ncols_per_block;
-    //int max_diag = std::min(ZT.nrows, ZT.ncols);
-    //int ndiag_per_proc = max_diag - offset;
-    //std::vector<double> diag(local_ncols), global_diag(ZT.ncols);
-    //if (ndiag_per_proc >= 0) {
-      //for (int i = 0; i < max_diag; i++) {
-        //diag[i] = std::abs(ZT.store[i*ZT.nrows+i+offset].real());
-      //}
-    //}
+    MatrixOperations::redistribute(ZT, BH.Square, BH.Column, true,
+                                   ZT.nrows, ncols_per_block);
+    int offset = BH.rank * ncols_per_block;
+    int max_diag = std::min(ZT.nrows, ZT.ncols);
+    int ndiag_left = std::max(0, max_diag-offset);
+    int ndiag_per_proc = std::min(ncols_per_block, ndiag_left);
+    DistributedMatrix::Matrix<std::complex<double> > diag(1, ZT.ncols, BH.Root);
+    MatrixOperations::redistribute(diag, BH.Root, BH.Column, false, 1, ncols_per_block);
+    if (ndiag_left > 0) {
+      for (int i = 0; i < ndiag_per_proc; i++) {
+        diag.store[i] = std::abs(ZT.store[i*ZT.nrows+i+offset]);
+      }
+    }
+    MatrixOperations::redistribute(diag, BH.Column, BH.Root);
 
     // ZT is distributed block cyclically. Following QRCP procedure perm(i) = k maps
     // column i of the local matrix to column k in the global matrix. perm is also
@@ -176,23 +179,16 @@ namespace QRCP
     if (BH.rank == 0) {
       std::copy(ordered_perm.begin(), ordered_perm.begin()+num_interp_pts, interp_indxs.data());
       std::sort(interp_indxs.begin(), interp_indxs.end());
-      //for (int i = 0; i < interp_indxs.size(); i++) {
-        ////std::cout << i << " " << MatrixOperations::global_matrix_index(i, BH.Square, 64) << " " << perm[i] << std::endl;
-        //std::cout << i << " " << interp_indxs[i] << std::endl;
-      //}
-      //int offset = ZT.nrows;
-      //std::string prefix;
-      //if (half_rotate) {
-        //prefix = "half_ix";
-      //} else {
-        //prefix = "full_ix";
-      //}
-      //std::cout << max_diag << " " << perm.size() << " " << ZT.nrows << " " << ZT.ncols << std::endl;
-      //for (int i = 0; i < max_diag; i++) {
-        //std::cout << prefix << " " << i << " " << perm[i] << " " << std::setprecision(16) << global_diag[i] << std::endl;
-      //}
+      std::string prefix;
+      if (half_rotate) {
+        prefix = "half_ix";
+      } else {
+        prefix = "full_ix";
+      }
+      for (int i = 0; i < max_diag; i++) {
+        std::cout << prefix << " " << i << " " << std::setprecision(16) << diag.store[i].real() << std::endl;
+      }
     }
-    MPI_Barrier(MPI_COMM_WORLD);
   }
 
   // Destructor.
