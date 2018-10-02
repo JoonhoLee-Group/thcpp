@@ -84,8 +84,6 @@ namespace QRCP
     disps[0] = 0;
     for (int i = 1; i < recv_counts.size(); i++) {
       disps[i] = disps[i-1] + recv_counts[i-1];
-      if (BH.rank == 0) {
-      }
     }
     MPI_Gatherv(global_index.data(), global_index.size(), MPI_INT,
                 col_index.data(), recv_counts.data(), disps.data(), MPI_INT,
@@ -134,25 +132,16 @@ namespace QRCP
       std::cout << "  * Time to construct Z matrix: " << tzmat / CLOCKS_PER_SEC << " seconds." << std::endl;
       std::cout << " * Redistributing ZT block cyclically." << std::endl;
     }
-    //if (!half_rotate) {
-        //int M2 = nbasis * nbasis;
-        //for (int i = 0; i < nbasis; i++) {
-          //for (int k = 0; k < nbasis; k++) {
-            //for (int a = 0; a < ZT.local_ncols; a++) {
-              //std::cout << std::setprecision(16) << ZT.store[a*M2+i*nbasis+k].real() << " ";
-            //}
-            //std::cout << "XXX" << std::endl;
-          //}
-        //}
-    //}
-    //DistributedMatrix::Matrix<std::complex<double> > ZZT(M2, aoR.ncols, BH.Column,
-                                                         //M2, ncols_per_block);
-    //std::copy(ZT.store.begin(), ZT.store.end(), ZZT.store.begin());
     MatrixOperations::redistribute(ZT, BH.Column, BH.Square, true, 64, 64);
-    //MatrixOperations::redistribute(ZZT, BH.Column, BH.Square, true, 64, 64);
     std::vector<int> perm;
-    //int rank = MatrixOperations::rank(ZZT, BH.Square, true);
     MatrixOperations::qrcp(ZT, perm, BH.Square);
+    // ZT is distributed block cyclically. Following QRCP procedure perm(i) = k maps
+    // column i of the local matrix to column k in the global matrix. perm is also
+    // effectively distributed block cyclically so we need to order it and map the local
+    // indices i to their corresponding values in the global matrix.
+    std::vector<int> ordered_perm = map_perm(perm, ZT.ncols, ZT.local_ncols, BH);
+    int num_interp_pts = thc_cfac * nbasis;
+    interp_indxs.resize(num_interp_pts);
     // Work out diagonal entries.
     MatrixOperations::redistribute(ZT, BH.Square, BH.Column, true,
                                    ZT.nrows, ncols_per_block);
@@ -168,14 +157,6 @@ namespace QRCP
       }
     }
     MatrixOperations::redistribute(diag, BH.Column, BH.Root);
-
-    // ZT is distributed block cyclically. Following QRCP procedure perm(i) = k maps
-    // column i of the local matrix to column k in the global matrix. perm is also
-    // effectively distributed block cyclically so we need to order it and map the local
-    // indices i to their corresponding values in the global matrix.
-    std::vector<int> ordered_perm = map_perm(perm, ZT.ncols, ZT.local_ncols, BH);
-    int num_interp_pts = thc_cfac * nbasis;
-    interp_indxs.resize(num_interp_pts);
     if (BH.rank == 0) {
       std::copy(ordered_perm.begin(), ordered_perm.begin()+num_interp_pts, interp_indxs.data());
       std::sort(interp_indxs.begin(), interp_indxs.end());
@@ -186,7 +167,7 @@ namespace QRCP
         prefix = "full_ix";
       }
       for (int i = 0; i < max_diag; i++) {
-        std::cout << prefix << " " << i << " " << std::setprecision(16) << diag.store[i].real() << std::endl;
+        std::cout << prefix+"_diag"<< " " << i << " " << std::setprecision(16) << diag.store[i].real() << std::endl;
       }
     }
   }
