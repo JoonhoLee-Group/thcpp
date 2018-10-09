@@ -10,7 +10,6 @@ from pyscf.pbc.dft import gen_grid,numint
 from pyscf.lib.chkfile import load
 from pyscf import lib
 from pyscf.pbc.lib.chkfile import load_cell
-from qmctools.orthoAO import getOrthoAORotation
 import thc.utils
 import thc.transform_basis as tb
 
@@ -153,7 +152,7 @@ class AOTHC:
 
     def construct_cz_matrices(self, IPts, aoR_mu):
         # shape (Nmu,ngs)
-        CZt = numpy.dot(aoR_mu, self.aoR.T)
+        CZt = numpy.dot(aoR_mu, self.aoR.conj().T)
         CZt = CZt*CZt
         # shape (Nmu,Nmu)
         CCt = CZt[:,IPts].copy()
