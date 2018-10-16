@@ -12,7 +12,8 @@ namespace InterpolatingVectors
   class IVecs
   {
     public:
-      IVecs(nlohmann::json &input_file, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, bool half_rotated, bool append);
+      IVecs(nlohmann::json &input_file, ContextHandler::BlacsHandler &BH,
+            std::vector<int> &interp_indxs, bool half_rotated, bool append);
       void kernel(ContextHandler::BlacsHandler &BH);
       void dump_qmcpack_data(int thc_cfac, int thc_half_cfac,
                              ContextHandler::BlacsHandler &BH);

@@ -71,11 +71,18 @@ extern "C" {
                 int *info);
   void pzgesvd_(char *jobu, char *jobvt,
                 int *m, int *n,
-                std::complex<double> *A, int *ia, int *ja, int *desca,
-                double *S,
-                std::complex<double> *U, int *iu, int *ju, int *descu,
-                std::complex<double> *VT, int *ivt, int *jvt, int *descvt,
-                std::complex<double> *WORK, int *lwork, double *RWORK,
+                std::complex<double> *a, int *ia, int *ja, int *desca,
+                double *s,
+                std::complex<double> *u, int *iu, int *ju, int *descu,
+                std::complex<double> *vt, int *ivt, int *jvt, int *descvt,
+                std::complex<double> *work, int *lwork, double *rwork,
                 int *info);
+  void pzgeqpf_(int *m, int *n,
+                std::complex<double> *a, int *ia, int *ja, int *desca,
+                int *ipiv,
+                std::complex<double> *tau,
+                std::complex<double> *work, int *lwork, double *rwork, int *lrwork,
+                int *info);
+  int indxl2g_(int *indxloc, int *nb, int *iproc, int *isrcproc, int *nprocs);
 }
 #endif

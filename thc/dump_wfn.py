@@ -30,7 +30,7 @@ args : :class:`ArgumentParser`
     parser.add_argument('-w', '--wfn-file', dest='wfn_file', type=str,
                         default='wfn_thc.dat', help='Wavefunction file.')
     parser.add_argument('-d', '--dump-file', type=str, dest='dump_file',
-                        default='aos.h5', help='AO input dump for THC++ input.')
+                        default='aos.h5', help='Output file to write orbitals to for THC++.')
     parser.add_argument('-n', '--ngs', type=int, dest='ngs',
                         default=None, help='Real space grid.')
     parser.add_argument('-k', '--kpoints', type=str, dest='kpoints',

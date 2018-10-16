@@ -340,10 +340,11 @@ def write_mo_matrix(out, mos, nao):
 
 def read_mo_matrix(filename):
     with open(filename) as f:
-        content = f.readlines()[8:]
+        content = f.readlines()[9:]
     useable = numpy.array([c.split() for c in content]).flatten()
-    tuples = [ast.literal_eval(u) for u in useable]
-    orbs = [complex(t[0], t[1]) for t in tuples]
+    # tuples = [ast.literal_eval(u) for u in useable]
+    # orbs = [complex(t[0], t[1]) for t in tuples]
+    orbs = [float(u) for u in useable]
     return numpy.array(orbs)
 
 def thc_coulomb(thc_file, wfn_file):
@@ -460,6 +461,7 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
                     print ("Orthogonalising AOs.")
                     # Translate orthogonalising matrix to supercell basis.
                     aoR = numpy.dot(aoR, AORot)
+                    # Need to fix for other basis sets.
                     if half_rotate:
                         aoR_half = numpy.dot(aoR, numpy.identity(AORot.shape[0])[:,:nup])
                         for i in range(ngs_chunk):
@@ -540,6 +542,20 @@ def dump_orbitals_old(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
 
 def unitary_transform(A, P):
     return numpy.dot(P.conj().T, numpy.dot(A, P))
+
+def molecular_orbitals_rhf(fock, AORot):
+    fock_ortho = unitary_transform(fock, AORot)
+    mo_energies, mo_orbs = scipy.linalg.eigh(fock_ortho)
+    return (mo_energies, mo_orbs)
+
+def molecular_orbitals_uhf(fock, AORot):
+    mo_energies = numpy.zeros((2, fock.shape[-1]))
+    mo_orbs = numpy.zeros((2, fock.shape[-1], fock.shape[-1]))
+    fock_ortho = unitary_transform(fock[0], AORot)
+    (mo_energies[0], mo_orbs[0]) = scipy.linalg.eigh(fock_ortho)
+    fock_ortho = unitary_transform(fock[1], AORot)
+    (mo_energies[1], mo_orbs[1]) = scipy.linalg.eigh(fock_ortho)
+    return (mo_energies, mo_orbs)
 
 def supercell_molecular_orbitals_mo_basis(fock, CikJ, S):
     # Extend to large block matrix.

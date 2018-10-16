@@ -30,6 +30,14 @@ void zero(std::vector<T> &vec)
   }
 }
 
+template <typename T>
+void add_constant(std::vector<T> &vec, T a)
+{
+  for (int i = 0; i < vec.size(); i++) {
+    vec[i] += a;
+  }
+}
+
 inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
 {
   double diff = 0.0;
@@ -221,6 +229,15 @@ inline int cholesky(DistributedMatrix::Matrix<std::complex<double> > &A)
 }
 
 template <typename T>
+inline void swap_dims(DistributedMatrix::Matrix<T> &A)
+{
+  int tmp_row = A.nrows;
+  A.nrows = A.ncols;
+  A.ncols = tmp_row;
+}
+
+
+template <typename T>
 inline void local_transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
 {
   std::vector<T> tmp(A.ncols*A.nrows);
@@ -239,14 +256,6 @@ inline void local_transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true
   }
   A.store.swap(tmp);
   swap_dims(A);
-}
-
-template <typename T>
-inline void swap_dims(DistributedMatrix::Matrix<T> &A)
-{
-  int tmp_row = A.nrows;
-  A.nrows = A.ncols;
-  A.ncols = tmp_row;
 }
 
 inline void transpose(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &AT, bool hermi=false)
@@ -466,11 +475,29 @@ inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<
            VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
            WORK.data(), &lwork, RWORK.data(),
            &info);
+  //zgesvd_(&jobu, &jobvt,
+           //&A.nrows, &A.ncols,
+           //A.store.data(), &A.nrows,
+           //S.data(),
+           //U.store.data(), &U.nrows,
+           //VT.store.data(), &VT.nrows,
+           //WORK.data(), &lwork, RWORK.data(),
+           //&info);
+  //std::cout << info << " " << WORK[0] << " " << RWORK[0] << " " << A.store.size() << " " << A.nrows << " " << A.ncols << std::endl;
   // Actual computation
   lwork = int(WORK[0].real());
   WORK.resize(lwork);
   int lrwork = int(RWORK[0]);
   RWORK.resize(lrwork);
+  //RWORK.resize(5*std::min(A.nrows, A.ncols));
+  //zgesvd_(&jobu, &jobvt,
+           //&A.nrows, &A.ncols,
+           //A.store.data(), &A.nrows,
+           //S.data(),
+           //U.store.data(), &U.nrows,
+           //VT.store.data(), &VT.nrows,
+           //WORK.data(), &lwork, RWORK.data(),
+           //&info);
   pzgesvd_(&jobu, &jobvt,
            &A.nrows, &A.ncols,
            A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
@@ -479,7 +506,21 @@ inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<
            VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
            WORK.data(), &lwork, RWORK.data(),
            &info);
-  return info;
+  if (info < 0) {
+    std::cout << " * WARNING: SVD Failed." << std::endl;
+    std::cout << "  * " << -info << "th argument had illegal value." << std::endl;
+    return -1;
+  } else if (info > 0) {
+    std::cout << " * WARNING: SVD Failed." << std::endl;
+    std::cout << "  * " << "ZBDSQR did not converge." << std::endl;
+    if (info == std::min(A.nrows, A.ncols)+1) {
+      std::cout << "  * Eigenvalues are not consistent across processor grid." << std::endl;
+      std::cout << "  * Result cannot be trusted." << std::endl;
+    }
+    return -1;
+  } else {
+    return info;
+  }
 }
 
 template <class T>
@@ -496,7 +537,7 @@ int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool wr
   if (BG.rank == 0 && write) {
     std::cout << "Singular values." << std::endl;
     for (int i = 0; i < S.size(); i++) {
-      std::cout << i << " " << S[i] << std::endl;
+      std::cout << "SV " << i << " " << S[i] << std::endl;
     }
   }
   int null = 0;
@@ -504,6 +545,55 @@ int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool wr
     if (S[i] < rcond) null++;
   }
   return A.nrows - null;
+}
+
+// QR decomposition with column pivoting.
+// Currently only returns permutation vector.
+template <class T>
+int qrcp(DistributedMatrix::Matrix<T> &A, std::vector<int> &perm,
+         ContextHandler::BlacsGrid &BG, bool write=false)
+{
+  perm.resize(A.ncols);
+  std::vector<std::complex<double> > TAU(std::min(A.nrows, A.ncols));
+  std::vector<std::complex<double> > WORK(1);
+  std::vector<double> RWORK(1);
+  int lwork = -1, lrwork = -1;
+  int info;
+  // First perform workspace query.
+  pzgeqpf_(&A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           perm.data(),
+           TAU.data(),
+           WORK.data(), &lwork, RWORK.data(), &lrwork,
+           &info);
+  lwork = int(WORK[0].real());
+  WORK.resize(lwork);
+  lrwork = int(RWORK[0]);
+  RWORK.resize(lrwork);
+  // Perform QRCP decomposition.
+  pzgeqpf_(&A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           perm.data(),
+           TAU.data(),
+           WORK.data(), &lwork, RWORK.data(), &lrwork,
+           &info);
+  // perm will be fortran indexed so subtract one.
+  add_constant(perm, -1);
+  return info;
+}
+
+inline int global_matrix_col_index(int local_index, ContextHandler::BlacsGrid &BG, int nb)
+{
+  int root = 0;
+  int li = local_index + 1; // C to fortran
+  return indxl2g_(&li, &nb, &BG.col, &root, &BG.ncols) - 1; // fortran to C
+}
+
+inline int global_matrix_row_index(int local_index, ContextHandler::BlacsGrid &BG, int mb)
+{
+  int root = 0;
+  int li = local_index + 1; // C to fortran
+  return indxl2g_(&li, &mb, &BG.row, &root, &BG.nrows) - 1; // fortran to C
 }
 
 }

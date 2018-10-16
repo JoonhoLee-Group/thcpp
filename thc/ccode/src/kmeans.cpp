@@ -11,16 +11,17 @@
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
 
-namespace InterpolatingPoints
+namespace KMeans
 {
-  KMeans::KMeans(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH)
+  KMeansSolver::KMeansSolver(nlohmann::json &input, ContextHandler::BlacsHandler &BH)
   {
     if (BH.rank == 0) {
       filename = input.at("orbital_file").get<std::string>();
-      max_it = input.at("kmeans").at("max_it").get<int>();
-      threshold = input.at("kmeans").at("threshold").get<double>();
+      nlohmann::json kmeans = input.at("interpolating_points").at("kmeans");
+      max_it = kmeans.at("max_it").get<int>();
+      threshold = kmeans.at("threshold").get<double>();
       try {
-        rng_seed = input.at("kmeans").at("rng_seed").get<int>();
+        rng_seed = kmeans.at("rng_seed").get<int>();
       }
       catch (nlohmann::json::out_of_range& error) {
         std::cout << " * RNG seed not set in input file." << std::endl;
@@ -28,14 +29,21 @@ namespace InterpolatingPoints
         std::cout << " * Setting RNG seed to : " << rng_seed << std::endl;
         std::cout << std::endl;
       }
+      try {
+        density_label = kmeans.at("density").get<std::string>();
+      }
+      catch (nlohmann::json::out_of_range& error) {
+        density_label = "density";
+        std::cout << " * Density not specified." << std::endl;
+        std::cout << " * Using full basis set for density." << std::endl;
+      }
     }
     MPI_Bcast(&max_it, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&threshold, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    thc_cfac = cfac;
     ndim = 3;
   }
 
-  void KMeans::scatter_data(std::vector<double> &grid, int num_points, int ndim, ContextHandler::BlacsGrid &BG)
+  void KMeansSolver::scatter_data(std::vector<double> &grid, int num_points, int ndim, ContextHandler::BlacsGrid &BG)
   {
     int num_points_per_proc = num_points / BG.nprocs;
     std::vector<int> send_counts(BG.nprocs), disps(BG.nprocs);
@@ -59,7 +67,7 @@ namespace InterpolatingPoints
     grid.swap(recv_buf);
   }
 
-  void KMeans::gather_data(std::vector<double> &grid, ContextHandler::BlacsGrid &BG)
+  void KMeansSolver::gather_data(std::vector<double> &grid, ContextHandler::BlacsGrid &BG)
   {
     std::vector<int> recv_counts(BG.nprocs), disps(BG.nprocs);
     int nsend = grid.size();
@@ -77,7 +85,7 @@ namespace InterpolatingPoints
     grid.swap(recv_buf);
   }
 
-  void KMeans::classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map, bool resize_deltas)
+  void KMeansSolver::classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map, bool resize_deltas)
   {
     double dx, dy, dz;
     if (resize_deltas) deltas.resize(centroids.size()/ndim);
@@ -97,7 +105,7 @@ namespace InterpolatingPoints
     }
   }
 
-  void KMeans::update_centroids(std::vector<double> &rho, std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map)
+  void KMeansSolver::update_centroids(std::vector<double> &rho, std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map)
   {
     MatrixOperations::zero(weights);
     MatrixOperations::zero(centroids);
@@ -123,7 +131,7 @@ namespace InterpolatingPoints
     }
   }
 
-  std::vector<int> KMeans::map_to_grid(std::vector<double> &grid, std::vector<double> &centroids)
+  std::vector<int> KMeansSolver::map_to_grid(std::vector<double> &grid, std::vector<double> &centroids)
   {
     std::vector<int> interp_idxs(num_interp_pts);
     classify_grid_points(centroids, grid, interp_idxs, true);
@@ -136,7 +144,7 @@ namespace InterpolatingPoints
     return interp_idxs;
   }
 
-  void KMeans::guess_initial_centroids(std::vector<double> &grid, std::vector<double> &centroids)
+  void KMeansSolver::guess_initial_centroids(std::vector<double> &grid, std::vector<double> &centroids)
   {
     std::vector<int> tmp(num_grid_pts), indxs(num_interp_pts);
     for (int i = 0; i < grid.size()/ndim; i++) {
@@ -154,7 +162,7 @@ namespace InterpolatingPoints
     }
   }
 
-  double KMeans::percentage_change(std::vector<int> &new_grid_map, std::vector<int> &old_grid_map)
+  double KMeansSolver::percentage_change(std::vector<int> &new_grid_map, std::vector<int> &old_grid_map)
   {
     int num_changed = 0, total_changed = 0;
     for (int i = 0; i < new_grid_map.size(); i++) {
@@ -164,12 +172,12 @@ namespace InterpolatingPoints
     return 100 * ((double)total_changed) / num_grid_pts;
   }
 
-  void KMeans::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs)
+  void KMeansSolver::kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, int thc_cfac)
   {
     // real space grid.
     DistributedMatrix::Matrix<double> grid(filename, "real_space_grid", BH.Root);
     // "electron density" from supercell atomic orbitals.
-    DistributedMatrix::Matrix<double> density(filename, "density", BH.Root);
+    DistributedMatrix::Matrix<double> density(filename, density_label, BH.Root);
     std::vector<hsize_t> dims(2);
     if (BH.rank == 0) H5Helper::read_dims(filename, "aoR", dims);
     MPI_Bcast(dims.data(), dims.size(), MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
@@ -242,7 +250,7 @@ namespace InterpolatingPoints
     }
     MPI_Barrier(MPI_COMM_WORLD);
   }
-  KMeans::~KMeans()
+  KMeansSolver::~KMeansSolver()
   {
   }
 }

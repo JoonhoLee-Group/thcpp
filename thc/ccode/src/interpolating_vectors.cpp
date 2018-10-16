@@ -14,7 +14,8 @@
 
 namespace InterpolatingVectors
 {
-  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, bool rotate, bool append)
+  IVecs::IVecs(nlohmann::json &input, ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs,
+               bool rotate, bool append)
   {
     int filename_size;
     if (BH.rank == 0) {
@@ -152,6 +153,11 @@ namespace InterpolatingVectors
     for (int i = 0; i < CZt.store.size(); i++) {
       CZt.store[i] = Pua.store[i] * std::conj(CZt.store[i]);
     }
+#ifndef NDEBUG
+    MatrixOperations::redistribute(CZt, BH.Square, BH.Root);
+    Logging::dump_matrix(CZt, output_file, prefix+"CZt", false, BH.rank==0);
+    MatrixOperations::redistribute(CZt, BH.Root, BH.Square, false, 64, 64);
+#endif
   }
 
   void IVecs::setup_CCt(std::vector<int> &interp_indxs, ContextHandler::BlacsHandler &BH)
@@ -388,8 +394,12 @@ namespace InterpolatingVectors
     // Print out FFTd interpolating vectors matrices.
     MatrixOperations::redistribute(CZt, BH.Column, BH.Root);
     Logging::dump_matrix(CZt, output_file, prefix+"IVG", false, BH.rank==0);
-    // Transpose back to Fortran order.
     MatrixOperations::redistribute(CZt, BH.Root, BH.Column);
+    if (half_rotate) {
+      MatrixOperations::redistribute(IVMG, BH.Column, BH.Root);
+      Logging::dump_matrix(CZt, output_file, prefix+"IVMG", false, BH.rank==0);
+      MatrixOperations::redistribute(IVMG, BH.Root, BH.Column);
+    }
 #endif
   }
 

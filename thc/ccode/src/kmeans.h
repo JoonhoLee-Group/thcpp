@@ -8,14 +8,14 @@
 #include "distributed_matrix.h"
 #include "matrix_operations.h"
 
-namespace InterpolatingPoints
+namespace KMeans
 {
-  class KMeans
+  class KMeansSolver
   {
     public:
-      KMeans(nlohmann::json &input, int cfac, ContextHandler::BlacsHandler &BH);
-      ~KMeans();
-      void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs);
+      KMeansSolver(nlohmann::json &input, ContextHandler::BlacsHandler &BH);
+      ~KMeansSolver();
+      void kernel(ContextHandler::BlacsHandler &BH, std::vector<int> &interp_indxs, int thc_cfac);
     private:
       void classify_grid_points(std::vector<double> &grid, std::vector<double> &centroids,
                                 std::vector<int> &grid_map, bool resize_deltas=false);
@@ -34,6 +34,7 @@ namespace InterpolatingPoints
       int thc_cfac;
       int ndim;
       unsigned int rng_seed;
+      std::string density_label;
       // temporary storage.
       std::vector<double> deltas, weights, global_weights, global_centroids;
   };
