@@ -405,7 +405,10 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         # Translate one-body hamiltonian from non-orthogonal kpoint basis to
         # orthogonal supercell basis.
         hcore = scipy.linalg.block_diag(*hcore)
-        hcore = CikJ.dot(hcore).dot(CikJ.conj().T)
+        hcore = 0.5 * (hcore + hcore.conj().T)
+        # print (numpy.abs(numpy.max(hcore - hcore.conj().T)))
+        hcore = (CikJ.conj().T).dot(hcore).dot(CikJ)
+        hcore = 0.5 * (hcore+hcore.conj().T)
         if ortho_ao:
             hcore = unitary_transform(hcore, AORot)
     with h5py.File(filename, 'w') as fh5:
@@ -413,8 +416,12 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         fh5.create_dataset('kpoint_grid', data=nks.reshape(nks.shape+(1,)))
         fh5.create_dataset('fft_grid', data=gs.reshape(gs.shape+(1,)))
         delta_max = numpy.max(numpy.abs(hcore-hcore.conj().T))
-        if (delta_max > 1e-12):
+        if (delta_max > 1e-8):
             print ("WARNING: HCORE is not Hermitian. Max difference %13.8e.  Symmetrising for now."%delta_max)
+        # The orthogonalising matrix seems to have large elements which leads to
+        # precision issues when transforming the matrix. QMCPACK checks the
+        # individual elements, which are small. It's safe to explicitly
+        # hermitise the matrix.
         fh5.create_dataset('hcore', data=0.5*(hcore+hcore.conj().T))
         fh5.create_dataset('constant_energy_factors',
                            data=numpy.array([e0]).reshape(1,1))
@@ -532,15 +539,15 @@ def dump_orbitals_old(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         fh5.flush()
 
 def unitary_transform(A, P):
-    return P.conj().T.dot(A).dot(P)
+    return numpy.dot(P.conj().T, numpy.dot(A, P))
 
 def supercell_molecular_orbitals_mo_basis(fock, CikJ, S):
     # Extend to large block matrix.
     S = scipy.linalg.block_diag(*S)
     fock = scipy.linalg.block_diag(*fock)
     # Transform to non-orthogonal supercell AOs
-    S = CikJ.dot(S).dot(CikJ.conj().T)
-    fock = CikJ.dot(fock).dot(CikJ.conj().T)
+    S = (CikJ.conj().T).dot(S).dot(CikJ)
+    fock = (CikJ.conj().T).dot(fock).dot(CikJ)
     (mo_energies, AORot) = scipy.linalg.eigh(fock, S)
     mo_orbs = numpy.identity(S.shape[0])
     return (mo_energies, mo_orbs, AORot)
@@ -550,12 +557,12 @@ def supercell_molecular_orbitals(fock, CikJ, S):
     S = scipy.linalg.block_diag(*S)
     # Transform to non-orthogonal supercell AOs
     # S = unitary_transform(S, CikJ)
-    S = CikJ.dot(S).dot(CikJ.conj().T)
+    S = (CikJ.conj().T).dot(S).dot(CikJ)
     AORot = get_transformed_orthoAO(S, 1e-14)
     fock = scipy.linalg.block_diag(*fock)
     # Transform to non-orthogonal supercell AOs
     # fock_sc = unitary_transform(fock, CikJ)
-    fock_sc = CikJ.dot(fock).dot(CikJ.conj().T)
+    fock_sc = (CikJ.conj().T).dot(fock).dot(CikJ)
     # Transform orthogonal supercell AOs
     ortho_fock_sc = unitary_transform(fock_sc, AORot)
     (mo_energies, mo_orbs) = scipy.linalg.eigh(ortho_fock_sc)
@@ -616,8 +623,8 @@ def dump_thc_data(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
     print ("Writing supercell orbitals to %s"%orbital_file)
     e0 = nkpts * mf.energy_nuc()
     e0 += -0.5 * nkpts * cell.nelectron * tools.pbc.madelung(cell, kpts)
-    dump_orbitals(supercell, AORot, CikJ, hcore, nks, half_rotate=half_rotate, e0=e0,
-                  ortho_ao=ortho_ao, filename=orbital_file, ngs=ngs)
+    dump_orbitals(supercell, AORot, CikJ, hcore, nks, half_rotate=half_rotate,
+                  e0=e0, ortho_ao=ortho_ao, filename=orbital_file, ngs=ngs)
 
 def test_mos(scf_dump):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
@@ -716,7 +723,7 @@ def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     # print ("ecore: ", 2*numpy.einsum('ij,ij->', hcore, rdm2))
     scmf = scf.RHF(supercell)
     # print ("RHF")
-    # h1e_sc = scmf.get_hcore()
+    h1e_sc = scmf.get_hcore()
     # print ("HCORE")
     # rdm_sc = CikJ.dot(rdm).dot(CikJ.conj().T)
     # S_sc = CikJ.dot(S).dot(CikJ.conj().T)
@@ -745,13 +752,14 @@ def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     # overlap to for supercell aos
     print ("overlap")
     (e,o,A) = supercell_molecular_orbitals_mo_basis(fock, CikJ, s1e)
-    # S = scipy.linalg.block_diag(*S)
+    SS = lib.asarray(supercell.pbc_intor('cint1e_ovlp_sph', hermi=1,
+        kpts=numpy.zeros(3)))
     # S = CikJ.dot(S).dot(CikJ.conj().T)
     # AORot2 = get_transformed_orthoAO(S, 1e-8)
     # In the non-orth-sc basis
     fock = scipy.linalg.block_diag(*fock)
     euc, ev = scipy.linalg.eigh(fock, S)
-    fock_sc = (CikJ).dot(fock).dot(CikJ.conj().T)
+    fock_sc = (CikJ.conj().T).dot(fock).dot(CikJ)
     # ..
     ortho_fock_sc2 = (A.conj().T).dot(fock_sc).dot(A)
     e4, ev4 = scipy.linalg.eigh(ortho_fock_sc2)
@@ -763,7 +771,8 @@ def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     nup = supercell.nelec[0]
     psi = ev4[:,:nup]
     G = (psi.dot(psi.conj().T)).T
-    hcore_sc = CikJ.T.dot(hcore).dot(CikJ.conj().T)
+    hcore_sc = (CikJ.conj().T).dot(hcore).dot(CikJ)
+    print ("DMAX: ", numpy.max(numpy.abs(hcore_sc-h1e_sc)))
     # print ("diff: ", numpy.max(hcore_sc-h1e_sc))
     hcore_sc_ortho = (A.conj().T).dot(hcore_sc).dot(A)
     # hcore_sc_ortho = 0.5*(hcore_sc_ortho+hcore_sc_ortho.conj().T)
@@ -772,4 +781,5 @@ def dump_wavefunction_old(scf_dump, kpoint_grid=None):
     # print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho2, G), G.trace())
     # print (numpy.max(hcore_sc_ortho2-hcore_sc_ortho))
     # print ("ecore_sc_trans: ", 2*numpy.einsum('ij,ij->', hcore_sc_ortho, G), G.trace())
-    return (hcore_sc_ortho, G)
+    # S = scipy.linalg.block_diag(*S)
+    return (hcore_sc_ortho, hcore_sc, G, A, CikJ, hcore, S, SS, mf.mo_coeff)
