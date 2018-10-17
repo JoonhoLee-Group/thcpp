@@ -402,7 +402,7 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         tools.get_coulG(supercell, k=numpy.zeros(3),
                         mesh=mesh)*supercell.vol/ngrid_points**2
     )
-    if ortho_ao:
+    if CikJ is not None:
         # Translate one-body hamiltonian from non-orthogonal kpoint basis to
         # orthogonal supercell basis.
         hcore = scipy.linalg.block_diag(*hcore)
@@ -410,8 +410,8 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         # print (numpy.abs(numpy.max(hcore - hcore.conj().T)))
         hcore = (CikJ.conj().T).dot(hcore).dot(CikJ)
         hcore = 0.5 * (hcore+hcore.conj().T)
-        if ortho_ao:
-            hcore = unitary_transform(hcore, AORot)
+    if ortho_ao:
+        hcore = unitary_transform(hcore, AORot)
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
         fh5.create_dataset('kpoint_grid', data=nks.reshape(nks.shape+(1,)))
@@ -475,8 +475,8 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
                 print ("Dumping data to file.")
                 density_dset[start:end,:] = rho
                 density_occ_dset[start:end,:] = rho_occ
-                ao_dset[start:end,:] = aoR
-                ao_half_dset[start:end,:] = aoR_half
+                ao_dset[start:end,:] = aoR.astype(numpy.complex128)
+                ao_half_dset[start:end,:] = aoR_half.astype(numpy.complex128)
                 total_time = time.time() - start_time
                 print ("Data dumped in %f s."%total_time)
                 start += chunk_size
@@ -596,19 +596,23 @@ def supercell_molecular_orbitals_uhf(fock, CikJ, S):
     (mo_energies[1], mo_orbs[1], A2) = supercell_molecular_orbitals_mo_basis(fock[1], CikJ, S)
     return (mo_energies, mo_orbs, A1)
 
-def dump_thc_data_sc(scf_dump, ortho_ao=False, wfn_file='wfn.dat',
-                     orbital_file='orbitals.h5', ngs=None):
+def dump_thc_data_sc(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
+                     wfn_file='wfn.dat', orbital_file='orbitals.h5', ngs=None,
+                     kpoint_grid=None):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
-    AORot = AORot[0]
-    fock = fock[0]
-    ortho_fock = unitary_transform(fock, AORot)
-    (mo_energies, mo_orbs) = scipy.linalg.eigh(ortho_fock)
-    dump_trial_wavefunction(mo_orbs, cell.nelec, False, filename=wfn_file)
+    # AORot = AORot[0]
+    # fock = fock[0]
+    # ortho_fock = unitary_transform(fock, AORot)
+    # (mo_energies, mo_orbs) = scipy.linalg.eigh(ortho_fock)
+    AORot = mf.mo_coeff[0]
+    orbs = numpy.eye(AORot.shape[0])
+    dump_trial_wavefunction(orbs, cell.nelec, filename=wfn_file)
     e0 = mf.energy_nuc()
     e0 += -0.5 * cell.nelectron * tools.pbc.madelung(cell, kpts)
-    dump_orbitals(cell, AORot, None, hcore, e0=e0,
-                  ortho_ao=ortho_ao, mos=False, filename=orbital_file,
-                  ngs=ngs)
+    nks = numpy.array([1,1,1])
+    CikJ = None
+    dump_orbitals(cell, AORot, CikJ, hcore, nks, half_rotate=half_rotate,
+                  e0=e0, ortho_ao=ortho_ao, filename=orbital_file, ngs=ngs)
 
 def dump_thc_data(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
                   wfn_file='wfn.dat', orbital_file='orbitals.h5', ngs=None,
