@@ -59,6 +59,12 @@ def unit_cell_to_supercell(cell, kpts, nks):
     if cell.mesh is None:
         cell.mesh = numpy.array([2*30+1,2*30+1,2*30+1])
     supercell = tools.super_cell(cell, nks)
+    if supercell.mesh[0] % 2 == 0:
+        supercell.mesh[0] += 1
+    if supercell.mesh[1] % 2 == 0:
+        supercell.mesh[1] += 1
+    if supercell.mesh[2] % 2 == 0:
+        supercell.mesh[2] += 1
     sc_slices = mole.aoslice_by_atom(supercell)
     # transformation matrix between unit and super cell
     nbasis = sc_slices[supercell.natm-1,3]
@@ -423,7 +429,9 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         # precision issues when transforming the matrix. QMCPACK checks the
         # individual elements, which are small. It's safe to explicitly
         # hermitise the matrix.
-        fh5.create_dataset('hcore', data=0.5*(hcore+hcore.conj().T))
+        hcore = 0.5*(hcore+hcore.conj().T)
+        print (hcore.shape)
+        fh5.create_dataset('hcore', data=hcore.astype(numpy.complex128))
         fh5.create_dataset('constant_energy_factors',
                            data=numpy.array([e0]).reshape(1,1))
         fh5.create_dataset('num_electrons',
@@ -600,6 +608,7 @@ def dump_thc_data_sc(scf_dump, mos=False, ortho_ao=False, half_rotate=False,
                      wfn_file='wfn.dat', orbital_file='orbitals.h5', ngs=None,
                      kpoint_grid=None):
     (cell, mf, hcore, fock, AORot, kpts, ehf_kpts, uhf) = init_from_chkfile(scf_dump)
+    hcore = scipy.linalg.block_diag(*hcore)
     # AORot = AORot[0]
     # fock = fock[0]
     # ortho_fock = unitary_transform(fock, AORot)
