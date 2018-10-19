@@ -43,8 +43,14 @@ args : :class:`ArgumentParser`
 def main(args):
     args = parse_args(args)
     if args.supercell:
-        dump_thc_data_sc(args.filename, ortho_ao=args.ortho,
-                         orbital_file="aos.h5", wfn_file="wfn_thc.dat")
+        dump_thc_data_sc(args.filename,
+                         mos=args.mos,
+                         ortho_ao=args.ortho,
+                         orbital_file=args.dump_file,
+                         wfn_file=args.wfn_file,
+                         half_rotate=args.trial,
+                         ngs=args.ngs,
+                         kpoint_grid=args.kpoints)
     else:
         dump_thc_data(args.filename,
                       mos=args.mos,
