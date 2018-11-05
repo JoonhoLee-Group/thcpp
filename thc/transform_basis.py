@@ -570,8 +570,8 @@ def supercell_molecular_orbitals_mo_basis(fock, CikJ, S):
     S = scipy.linalg.block_diag(*S)
     fock = scipy.linalg.block_diag(*fock)
     # Transform to non-orthogonal supercell AOs
-    S = (CikJ.conj().T).dot(S).dot(CikJ)
-    fock = (CikJ.conj().T).dot(fock).dot(CikJ)
+    S = (CikJ).dot(S).dot(CikJ.conj().T)
+    fock = (CikJ).dot(fock).dot(CikJ.conj().T)
     (mo_energies, AORot) = scipy.linalg.eigh(fock, S)
     mo_orbs = numpy.identity(S.shape[0])
     return (mo_energies, mo_orbs, AORot)
