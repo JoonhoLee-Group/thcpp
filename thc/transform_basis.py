@@ -414,7 +414,7 @@ def dump_orbitals(supercell, AORot, CikJ, hcore, nks, e0=0, ortho_ao=False,
         hcore = scipy.linalg.block_diag(*hcore)
         hcore = 0.5 * (hcore + hcore.conj().T)
         # print (numpy.abs(numpy.max(hcore - hcore.conj().T)))
-        hcore = (CikJ.conj().T).dot(hcore).dot(CikJ)
+        hcore = (CikJ).dot(hcore).dot(CikJ.conj().T)
         hcore = 0.5 * (hcore+hcore.conj().T)
     if ortho_ao:
         hcore = unitary_transform(hcore, AORot)
