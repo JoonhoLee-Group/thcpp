@@ -131,7 +131,7 @@ def init_from_chkfile(chkfile):
         kmf.mo_occ = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_occ'))
         kmf.mo_coeff = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_coeff'))
         kmf.mo_energies = numpy.asarray(lib.chkfile.load(chkfile, 'scf/mo_energy'))
-        if len(kmf.mo_occ) == 4:
+        if len(kmf.mo_coeff.shape) == 4:
             uhf = True
         else:
             uhf = False
