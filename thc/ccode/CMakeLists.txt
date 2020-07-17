@@ -1,5 +1,7 @@
 CMake_minimum_required (VERSION 2.6)
 project (THC++)
+enable_testing()
+include(CTest)
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -9,12 +11,20 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 
+MESSAGE(STATUS " Setting MPI executable: ${MPIEXEC_EXECUTABLE}")
+MESSAGE(STATUS " Setting MPI numproc flag: ${MPIEXEC_NUMPROC_FLAG}")
+
 include_directories("${PROJECT_SOURCE_DIR}")
+include("CMake/unit_test.cmake")
+add_library(Catch INTERFACE)
+target_include_directories(Catch INTERFACE ${YOUR_CATCH_INCLUDE_DIR})
+
+add_subdirectory(tests)
 
 add_executable(thcpp.x src/h5helper.cpp src/context_handler.cpp
                src/kmeans.cpp src/qrcp.cpp src/interpolating_points.cpp
                src/interpolating_vectors.cpp src/main.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp)
+               ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp)
 
 include(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
@@ -25,6 +35,7 @@ list(APPEND SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp" gitsha1.h)
 
 find_package(HDF5 COMPONENTS CXX)
 find_package(FFTW)
+
 if (FFTW_FOUND)
     include_directories(${FFTW_INCLUDES})
 endif (FFTW_FOUND)
