@@ -11,27 +11,13 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/custom)
 
-MESSAGE(STATUS " Setting MPI executable: ${MPIEXEC_EXECUTABLE}")
-MESSAGE(STATUS " Setting MPI numproc flag: ${MPIEXEC_NUMPROC_FLAG}")
+MESSAGE(STATUS "Setting MPI executable: ${MPIEXEC_EXECUTABLE}")
+MESSAGE(STATUS "Setting MPI numproc flag: ${MPIEXEC_NUMPROC_FLAG}")
 
 include_directories("${PROJECT_SOURCE_DIR}")
 include("CMake/unit_test.cmake")
 add_library(Catch INTERFACE)
 target_include_directories(Catch INTERFACE ${YOUR_CATCH_INCLUDE_DIR})
-
-add_subdirectory(tests)
-
-add_executable(thcpp.x src/h5helper.cpp src/context_handler.cpp
-               src/kmeans.cpp src/qrcp.cpp src/interpolating_points.cpp
-               src/interpolating_vectors.cpp src/main.cpp
-               ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp)
-
-include(GetGitRevisionDescription)
-get_git_head_revision(GIT_REFSPEC GIT_SHA1)
-git_local_changes(GIT_DIRTY)
-configure_file("src/gitsha1.cpp.in"
-               ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp @ONLY)
-list(APPEND SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp" gitsha1.h)
 
 find_package(HDF5 COMPONENTS CXX)
 find_package(FFTW)
@@ -45,4 +31,6 @@ include(math_libs)
 if (MPI_FOUND)
     include_directories(${MPI_INCLUDE_DIRS})
 endif (MPI_FOUND)
-target_link_libraries(thcpp.x ${HDF5_C_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${FFTW_LIBRARIES} ${MATH_LIBS} ${MPI_LIBRARIES})
+
+add_subdirectory(src)
+add_subdirectory(tests)
