@@ -69,6 +69,14 @@ extern "C" {
   void pzpotrf_(char *uplo, int *n,
                 std::complex<double> *A, int *ia, int *ja, int *desca,
                 int *info);
+  void pdgesvd_(char *jobu, char *jobvt,
+                int *m, int *n,
+                double *a, int *ia, int *ja, int *desca,
+                double *s,
+                double *u, int *iu, int *ju, int *descu,
+                double *vt, int *ivt, int *jvt, int *descvt,
+                double *work, int *lwork, double *rwork,
+                int *info);
   void pzgesvd_(char *jobu, char *jobvt,
                 int *m, int *n,
                 std::complex<double> *a, int *ia, int *ja, int *desca,
