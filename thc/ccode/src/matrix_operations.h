@@ -67,22 +67,11 @@ inline void product(int M, int N, int K, T one,
   dgemm_(&transa, &transb, &N, &M, &K, &one, B, &LDB, A, &LDA, &zero, C, &LDC);
 }
 
-// distributed matrix product
-inline void product(DistributedMatrix::Matrix<double> &A, DistributedMatrix::Matrix<double> &B,
-                    DistributedMatrix::Matrix<double> &C)
-{
-  char transa = 'N', transb = 'N';
-  double one = 1.0, zero = 0.0;
-  pdgemm_(&transa, &transb, &A.nrows, &B.ncols, &A.ncols,
-          &one,
-          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
-          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
-          &zero,
-          C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
-}
-
-inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, DistributedMatrix::Matrix<std::complex<double> > &B,
-                    DistributedMatrix::Matrix<std::complex<double> > &C, char transA='N', char transB='N')
+inline void product(DistributedMatrix::Matrix<std::complex<double> > &A,
+                    DistributedMatrix::Matrix<std::complex<double> > &B,
+                    DistributedMatrix::Matrix<std::complex<double> > &C,
+                    char transA='N',
+                    char transB='N')
 {
   std::complex<double>  one = 1.0, zero = 0.0;
   int m, n, k;
@@ -104,6 +93,39 @@ inline void product(DistributedMatrix::Matrix<std::complex<double> > &A, Distrib
     k = A.ncols;
   }
   pzgemm_(&transA, &transB, &m, &n, &k,
+          &one,
+          A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+          B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
+          &zero,
+          C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
+}
+
+inline void product(DistributedMatrix::Matrix<double> &A,
+                    DistributedMatrix::Matrix<double> &B,
+                    DistributedMatrix::Matrix<double> &C,
+                    char transA='N',
+                    char transB='N')
+{
+  double one = 1.0, zero = 0.0;
+  int m, n, k;
+  if ((transA == 'T' || transA == 'C') && transB == 'N') {
+    m = A.ncols;
+    n = B.ncols;
+    k = A.nrows;
+  } else if ((transB == 'T' || transB == 'C') && transA == 'N') {
+    m = A.nrows;
+    n = B.nrows;
+    k = A.ncols;
+  } else if ((transA == 'T' || transA == 'C') && (transB == 'T' || transB == 'C')) {
+    m = A.ncols;
+    n = A.nrows;
+    k = A.nrows;
+  } else {
+    m = A.nrows;
+    n = A.ncols;
+    k = A.ncols;
+  }
+  pdgemm_(&transA, &transB, &m, &n, &k,
           &one,
           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
           B.store.data(), &B.init_row_idx, &B.init_col_idx, B.desc.data(),
@@ -330,6 +352,9 @@ inline void redistribute(int m, int n,
 template <typename T>
 inline void redistribute(DistributedMatrix::Matrix<T> &M, ContextHandler::BlacsGrid &GridA, ContextHandler::BlacsGrid &GridB, bool verbose=false, int block_rows=-1, int block_cols=-1)
 {
+  if (GridB.rank == 0 && verbose) {
+    std::cout << "  * Local shape (on root processor) before redistribution: (" << M.local_nrows << ", " << M.local_ncols << ")" << std::endl;
+  }
   // setup descriptor for Blacs grid we'll distribute to.
   std::vector<int> descb(9);
   if (block_rows > 0 and block_cols > 0) {
@@ -460,7 +485,7 @@ inline void initialise_descriptor(DistributedMatrix::Matrix<T> &A, ContextHandle
 inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<double> &S, ContextHandler::BlacsGrid &BG)
 {
   char jobu = 'N', jobvt='N';
-  int lwork = -1, info;
+  int lwork = -1, info = 0;
   std::vector<std::complex<double> > WORK(1);
   std::vector<double> RWORK(1);
   // Unused arrays for interface consistency.
@@ -523,6 +548,115 @@ inline int svd(DistributedMatrix::Matrix<std::complex<double> > &A, std::vector<
   }
 }
 
+inline int svd(DistributedMatrix::Matrix<double> &A,
+               DistributedMatrix::Matrix<double>& U,
+               DistributedMatrix::Matrix<double>& VT,
+               std::vector<double> &S,
+               ContextHandler::BlacsGrid &BG)
+{
+  char jobu = 'V', jobvt='V';
+  int lwork = -1, info = 0;
+  std::vector<double> WORK(1);
+  std::vector<double> RWORK(1);
+  // Unused arrays for interface consistency.
+  //DistributedMatrix::Matrix<double> U(A.nrows, A.nrows, BG);
+  //DistributedMatrix::Matrix<double> VT(A.ncols, A.ncols, BG);
+  // Workspace Query
+  pdgesvd_(&jobu, &jobvt,
+           &A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           S.data(),
+           U.store.data(), &U.init_row_idx, &U.init_col_idx, U.desc.data(),
+           VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
+           WORK.data(), &lwork, RWORK.data(),
+           &info);
+  // Actual computation
+  lwork = int(WORK[0]);
+  WORK.resize(lwork);
+  int lrwork = int(RWORK[0]);
+  RWORK.resize(lrwork);
+  pdgesvd_(&jobu, &jobvt,
+           &A.nrows, &A.ncols,
+           A.store.data(), &A.init_row_idx, &A.init_col_idx, A.desc.data(),
+           S.data(),
+           U.store.data(), &U.init_row_idx, &U.init_col_idx, U.desc.data(),
+           VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
+           WORK.data(), &lwork, RWORK.data(),
+           &info);
+  if (info < 0) {
+    std::cout << " * WARNING: SVD Failed." << std::endl;
+    std::cout << "  * " << -info << "th argument had illegal value." << std::endl;
+    return -1;
+  } else if (info > 0) {
+    std::cout << " * WARNING: SVD Failed." << std::endl;
+    std::cout << "  * " << "DBDSQR did not converge." << std::endl;
+    if (info == std::min(A.nrows, A.ncols)+1) {
+      std::cout << "  * Eigenvalues are not consistent across processor grid." << std::endl;
+      std::cout << "  * Result cannot be trusted." << std::endl;
+    }
+    return -1;
+  } else {
+    return info;
+  }
+}
+
+inline int pseudo_inverse(DistributedMatrix::Matrix<double> &A,
+                          DistributedMatrix::Matrix<double> &Ainv,
+                          double rcond,
+                          ContextHandler::BlacsHandler &BH)
+{
+  int nrows = A.nrows;
+  int ncols = A.ncols;
+  DistributedMatrix::Matrix<double> U(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols), VT(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols);
+  std::vector<double> S(std::min(nrows, ncols), 0.0);
+  // 1. Perform SVD.
+  svd(A, U, VT, S, BH.Square);
+  // 2. Discard small singular values.
+  double thresh = rcond * S[0];
+  for (int i = 0; i < S.size(); i++) {
+    if (std::abs(S[i]) < thresh) {
+      S[i] = 0.0;
+    } else {
+      S[i] = 1.0 / S[i];
+    }
+  }
+  // 3. Form pinv
+  DistributedMatrix::Matrix<double> SMat(nrows,ncols,BH.Root,A.block_nrows,A.block_ncols);
+  if (BH.rank == 0) {
+    for (int i = 0; i < S.size(); i++)
+      SMat.store[i+S.size()*i] = S[i];
+  }
+  redistribute(SMat, BH.Root, BH.Square);
+  DistributedMatrix::Matrix<double> T1(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols);
+  // Ainv = (VT)^{T} S^{-1} U^T
+  product(SMat, U, T1, 'N', 'T');
+}
+
+// T[L,mn] = P[L,m] P[L, n]
+// distributed over L
+inline int tensor_rank_one(DistributedMatrix::Matrix<double> &P,
+                           DistributedMatrix::Matrix<double> &T)
+{
+  int mn = P.nrows * P.nrows;
+  double alpha = 1.0;
+  int inc = 1;
+  for (int l = 0; l < T.local_ncols; l++) {
+    //if (BH.rank == 0)
+      //std::cout << l << " " << l*mn << " " << P.nrows << std::endl;
+    dger_(&P.nrows, &P.nrows, &alpha,
+          P.store.data(), &inc,
+          P.store.data(), &inc,
+          T.store.data()+l*mn, &P.nrows);
+    //if (BH.rank == 0) {
+      //for (int i = 0; i < mn; i++)
+        //std::cout << *(T.store.data()+l*mn+i) << std::endl;
+      //std::cout << std::endl;
+    //}
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  //std::cout << "done: " << std::endl;
+}
+
 template <class T>
 int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool write=false)
 {
@@ -545,6 +679,13 @@ int rank(DistributedMatrix::Matrix<T> &A, ContextHandler::BlacsGrid &BG, bool wr
     if (S[i] < rcond) null++;
   }
   return A.nrows - null;
+}
+
+template<typename T>
+void hadamard_product(DistributedMatrix::Matrix<T> &A)
+{
+  for (int i = 0; i < A.store.size(); i++)
+    A.store[i] = A.store[i] * A.store[i];
 }
 
 // QR decomposition with column pivoting.
