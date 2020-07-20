@@ -88,7 +88,7 @@ namespace DistributedMatrix
     desc.resize(9);
     initialise_descriptor(desc, Grid, local_nrows, local_ncols);
     // Allocate memory.
-    store.resize(local_nrows*local_ncols);
+    store.resize(local_nrows*local_ncols, T(0));
   }
 
   // Constructor without having data, specifying block size.
@@ -108,7 +108,7 @@ namespace DistributedMatrix
     desc.resize(9);
     initialise_descriptor(desc, Grid, local_nrows, local_ncols);
     // Allocate memory.
-    store.resize(local_nrows*local_ncols);
+    store.resize(local_nrows*local_ncols, T(0));
   }
 
   // Read from file.
@@ -186,7 +186,7 @@ namespace DistributedMatrix
       initialise_descriptor(desc, Grid, local_nrows, local_ncols);
     }
     if (Grid.rank == 0) {
-      if (row_major && parallel) std::cout << " * Reinterpreting matrix in Fortran format." << std::endl;
+      if (row_major) std::cout << " * Reinterpreting matrix in Fortran format." << std::endl;
       std::cout << " * Matrix shape: (" << nrows << ", " << ncols << ")" << std::endl;
       if (parallel) {
         std::cout << " * Local shape (on root processor): (" << local_nrows << ", " << local_ncols << ")" << std::endl;
@@ -292,7 +292,7 @@ namespace DistributedMatrix
     ncols = n;
     initialise_descriptor(desc, Grid, local_nrows, local_ncols, br, bc);
     // Allocate memory.
-    store.resize(local_nrows*local_ncols);
+    store.resize(local_nrows*local_ncols, T(0));
   }
 
   template <class T>
