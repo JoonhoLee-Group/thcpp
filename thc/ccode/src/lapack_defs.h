@@ -14,6 +14,12 @@ extern "C" {
               double *B, int *ldb,
               double *WORK, int *lwork,
               int *info);
+  // rank-1 update
+  void dger_(int *m, int *n, double *alpha,
+             double *x, int *incx,
+             double *y, int *incy,
+             double* A, int *lda);
+
   void zgels_(char *trans,
               int *m, int *n, int *nrhs,
               std::complex<double> *A, int *lda,
