@@ -200,3 +200,18 @@ void find_pseudo_inverse(DistributedMatrix::Matrix<double>& orbs,
   MatrixOperations::hadamard_product(S);
   MatrixOperations::pseudo_inverse(S, Sinv, 1e-12, BH);
 }
+
+void find_pseudo_inverse_half(DistributedMatrix::Matrix<double>& orbs_occ,
+                              DistributedMatrix::Matrix<double>& orbs_virt,
+                              ContextHandler::BlacsHandler& BH,
+                              DistributedMatrix::Matrix<double>& Sinv)
+{
+  int nthc = orbs.nrows;
+  int norb = orbs.ncols;
+  DistributedMatrix::Matrix<double> Socc(nthc, nthc, BH.Square);
+  DistributedMatrix::Matrix<double> Svirt(nthc, nthc, BH.Square);
+  MatrixOperations::product(orbs_occ, orbs_occ, Socc, 'N', 'T');
+  MatrixOperations::product(orbs_virt, orbs_virt, Svirt, 'N', 'T');
+  MatrixOperations::hadamard_product(S, Svirt);
+  MatrixOperations::pseudo_inverse(S, Sinv, 1e-12, BH);
+}
