@@ -2,20 +2,25 @@
 #define CONTEXT_HANDLER_H
 #include "cblacs_defs.h"
 #include "mpi.h"
+#include <string>
 
 namespace ContextHandler
 {
+
+  enum Layouts { root, square, column };
+
   class BlacsGrid
   {
       public:
         BlacsGrid() {};
         ~BlacsGrid();
-        BlacsGrid(int nr, int nc, int rk);
+        BlacsGrid(int nr, int nc, int rk, Layouts layout);
         int rank;
         int nprocs;
         int nrows, ncols;
         int row, col;
         int ctxt;
+        Layouts layout;
         MPI_Comm comm;
   };
   // Handle different blacs grid distributions
