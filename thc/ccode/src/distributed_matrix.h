@@ -282,7 +282,7 @@ namespace DistributedMatrix
         store.resize(local_nrows*local_ncols);
       }
     } else {
-        store.resize(local_nrows*local_ncols);
+        store.resize(local_nrows*local_ncols, T(0));
     }
   }
   template <class T>
