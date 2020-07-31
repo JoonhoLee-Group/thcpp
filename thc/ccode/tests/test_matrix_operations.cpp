@@ -100,13 +100,28 @@ TEST_CASE("test_tensor_rank_one")
 TEST_CASE("test_hadamard")
 {
   ContextHandler::BlacsHandler BH;
-  DistributedMatrix::Matrix<double> T(4,4,BH.Square,2,2), T2(4,4,BH.Square,2,2);
-  for (int i = 0; i < T.store.size(); i++) {
-    T.store[i] = 2.0;
-    T2.store[i] = 4.0;
+  SECTION("inplace")
+  {
+    DistributedMatrix::Matrix<double> T(4,4,BH.Square,2,2), T2(4,4,BH.Square,2,2);
+    for (int i = 0; i < T.store.size(); i++) {
+      T.store[i] = 2.0;
+      T2.store[i] = 4.0;
+    }
+    MatrixOperations::hadamard_product(T);
+    REQUIRE_THAT(T2.store, Catch::Approx<double>(T.store).margin(1e-12));
   }
-  MatrixOperations::hadamard_product(T);
-  REQUIRE_THAT(T2.store, Catch::Approx<double>(T.store).margin(1e-12));
+  SECTION("mixed")
+  {
+    DistributedMatrix::Matrix<double> A(4,4,BH.Square,2,2), B(4,4,BH.Square,2,2), C(4,4,BH.Square,2,2);
+    DistributedMatrix::Matrix<double> R(4,4,BH.Square,2,2);
+    for (int i = 0; i < A.store.size(); i++) {
+      A.store[i] = 2.0;
+      B.store[i] = 4.0;
+      R.store[i] = 8.0;
+    }
+    MatrixOperations::hadamard_product(A, B, C);
+    REQUIRE_THAT(C.store, Catch::Approx<double>(R.store).margin(1e-12));
+  }
 }
 
 TEST_CASE("test_transpose")
