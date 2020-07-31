@@ -55,16 +55,27 @@ inline double normed_difference(std::vector<double> &a, std::vector<double> &b)
   return scale * sqrt(diff);
 }
 
-template <typename T>
-inline void product(int M, int N, int K, T one,
-                    T* A, int LDA, T* B, int LDB,
-                    T zero, T* C, int LDC)
+inline bool is_zero(std::vector<double> &a, double thresh=1e-12)
 {
-  const char transa = 'N';
-  const char transb = 'N';
+  for (int i = 0; i < a.size(); i++) {
+    if (std::abs(a[i]) > thresh)
+      return false;
+  }
+  return true;
+}
+
+inline void product(int M, int N, int K,
+                    double one,
+                    double* A, int LDA,
+                    double* B, int LDB,
+                    double zero,
+                    double* C, int LDC)
+{
+  char transa = 'N';
+  char transb = 'N';
 
   // C = A*B -> fortran -> C' = B'*A',
-  dgemm_(&transa, &transb, &N, &M, &K, &one, B, &LDB, A, &LDA, &zero, C, &LDC);
+  dgemm_(&transa, &transb, &M, &N, &K, &one, A, &LDA, B, &LDB, &zero, C, &LDC);
 }
 
 inline void product(DistributedMatrix::Matrix<std::complex<double> > &A,
@@ -108,6 +119,9 @@ inline void product(DistributedMatrix::Matrix<double> &A,
 {
   double one = 1.0, zero = 0.0;
   int m, n, k;
+  // m = # of rows of matrix op(A)
+  // n = # of columns of matrix op(B)
+  // k = # of columns/rows of matrix op(A)/op(B)
   if ((transA == 'T' || transA == 'C') && transB == 'N') {
     m = A.ncols;
     n = B.ncols;
@@ -118,11 +132,11 @@ inline void product(DistributedMatrix::Matrix<double> &A,
     k = A.ncols;
   } else if ((transA == 'T' || transA == 'C') && (transB == 'T' || transB == 'C')) {
     m = A.ncols;
-    n = A.nrows;
+    n = B.nrows;
     k = A.nrows;
   } else {
     m = A.nrows;
-    n = A.ncols;
+    n = B.ncols;
     k = A.ncols;
   }
   pdgemm_(&transA, &transB, &m, &n, &k,
@@ -133,6 +147,7 @@ inline void product(DistributedMatrix::Matrix<double> &A,
           C.store.data(), &C.init_row_idx, &C.init_col_idx, C.desc.data());
 }
 
+// Rename this
 inline void product(DistributedMatrix::Matrix<std::complex<double> > &A,
                     DistributedMatrix::Matrix<std::complex<double> > &C, char transA='N', char uplo='U')
 {
@@ -259,6 +274,9 @@ inline void swap_dims(DistributedMatrix::Matrix<T> &A)
 }
 
 
+// Transpose matrix assumed to be on root processor (not distributed)
+// row_major = true for data stored in C order : A[i][j] = A.store[i*A.ncols+j] 
+// row_major = false for data stored in Fortran order : A[i][j] = A.store[i+j*A.nrows] 
 template <typename T>
 inline void local_transpose(DistributedMatrix::Matrix<T> &A, bool row_major=true)
 {
@@ -570,6 +588,10 @@ inline int svd(DistributedMatrix::Matrix<double> &A,
            VT.store.data(), &VT.init_row_idx, &VT.init_col_idx, VT.desc.data(),
            WORK.data(), &lwork, RWORK.data(),
            &info);
+  if (info != 0) {
+    std::cout << " * Error determining optimal workspace." << std::endl;
+    std::cout << " * Error : " << info << std::endl;
+  }
   // Actual computation
   lwork = int(WORK[0]);
   WORK.resize(lwork);
@@ -607,19 +629,38 @@ inline int pseudo_inverse(DistributedMatrix::Matrix<double> &A,
 {
   int nrows = A.nrows;
   int ncols = A.ncols;
-  DistributedMatrix::Matrix<double> U(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols), VT(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols);
+  DistributedMatrix::Matrix<double> U(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols);
+  DistributedMatrix::Matrix<double> VT(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols);
   std::vector<double> S(std::min(nrows, ncols), 0.0);
   // 1. Perform SVD.
   svd(A, U, VT, S, BH.Square);
   // 2. Discard small singular values.
   double thresh = rcond * S[0];
+  int rank = 0;
   for (int i = 0; i < S.size(); i++) {
-    if (std::abs(S[i]) < thresh) {
-      S[i] = 0.0;
-    } else {
+    if (std::abs(S[i]) > thresh) {
       S[i] = 1.0 / S[i];
+      rank++;
+    } else {
+      S[i] = 0.0;
     }
   }
+  //DistributedMatrix::Matrix<double> UU("numpy_svd.h5", "u", BH.Root, true, false);
+  //DistributedMatrix::Matrix<double> VVT("numpy_svd.h5", "vt", BH.Root, true, false);
+  //DistributedMatrix::Matrix<double> SMat("numpy_svd.h5", "s", BH.Root, true, false);
+  //DistributedMatrix::Matrix<double> Pinv("numpy_svd.h5", "sinv", BH.Root, true, false);
+  //if (BH.rank == 0) 
+  //{
+    //MatrixOperations::local_transpose(UU);
+    //MatrixOperations::swap_dims(UU);
+    //MatrixOperations::local_transpose(VVT);
+    //MatrixOperations::swap_dims(VVT);
+    //MatrixOperations::local_transpose(Pinv);
+    //MatrixOperations::swap_dims(Pinv);
+  //}
+  //MatrixOperations::redistribute(UU, BH.Root, BH.Square, true);
+  //MatrixOperations::redistribute(VVT, BH.Root, BH.Square, true);
+  //MatrixOperations::redistribute(SMat, BH.Root, BH.Square, true);
   // 3. Form pinv
   DistributedMatrix::Matrix<double> SMat(nrows,ncols,BH.Root,A.block_nrows,A.block_ncols);
   if (BH.rank == 0) {
@@ -630,23 +671,34 @@ inline int pseudo_inverse(DistributedMatrix::Matrix<double> &A,
   DistributedMatrix::Matrix<double> T1(nrows,ncols,BH.Square,A.block_nrows,A.block_ncols);
   // Ainv = (VT)^{T} S^{-1} U^T
   product(SMat, U, T1, 'N', 'T');
+  product(VT, T1, Ainv, 'T', 'N');
+  //MatrixOperations::redistribute(Ainv, BH.Square, BH.Root);
+  //if (BH.rank == 0) {
+    //std::cout << Ainv.store[7*Ainv.nrows]-Pinv.store[7*Pinv.nrows] << std::endl;
+    //for (int i = 0; i < Ainv.store.size(); i++)
+      //if (std::abs(Ainv.store[i] - Pinv.store[i])>1e-10) {
+        //std::cout << i << " " << Ainv.store[i]-Pinv.store[i] << std::endl;
+      //}
+  //}
+  //Ainv.store = Pinv.store;
+  //MatrixOperations::redistribute(Ainv, BH.Root, BH.Square);
+  return rank;
 }
 
-// T[L,mn] = P[L,m] P[L, n]
+// T[L,mn] = P[L,m] P[L,n]
 // distributed over L
 inline int tensor_rank_one(DistributedMatrix::Matrix<double> &P,
                            DistributedMatrix::Matrix<double> &T)
 {
   int mn = P.nrows * P.nrows;
+  int m = P.nrows;
   double alpha = 1.0;
   int inc = 1;
   for (int l = 0; l < T.local_ncols; l++) {
-    //if (BH.rank == 0)
-      //std::cout << l << " " << l*mn << " " << P.nrows << std::endl;
-    dger_(&P.nrows, &P.nrows, &alpha,
-          P.store.data(), &inc,
-          P.store.data(), &inc,
-          T.store.data()+l*mn, &P.nrows);
+    dger_(&m, &m, &alpha,
+          P.store.data()+l*m, &inc,
+          P.store.data()+l*m, &inc,
+          T.store.data()+l*mn, &m);
     //if (BH.rank == 0) {
       //for (int i = 0; i < mn; i++)
         //std::cout << *(T.store.data()+l*mn+i) << std::endl;
@@ -735,6 +787,28 @@ inline int global_matrix_row_index(int local_index, ContextHandler::BlacsGrid &B
   int root = 0;
   int li = local_index + 1; // C to fortran
   return indxl2g_(&li, &mb, &BG.row, &root, &BG.nrows) - 1; // fortran to C
+}
+
+template <typename T>
+void print_matrix(DistributedMatrix::Matrix<T>& M, bool row_major)
+{
+  if (row_major) {
+    for (int i = 0; i < M.nrows; i++) {
+      for (int j = 0; j < M.ncols; j++) {
+        std::cout << M.store[i*M.ncols+j] << " ";
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
+  } else {
+    for (int j = 0; j < M.ncols; j++) {
+      for (int i = 0; i < M.nrows; i++) {
+        std::cout << M.store[j*M.nrows+i] << " ";
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
+  }
 }
 
 }
