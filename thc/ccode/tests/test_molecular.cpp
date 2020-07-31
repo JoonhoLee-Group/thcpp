@@ -252,14 +252,12 @@ TEST_CASE("test_multiply", "[molecule]")
   MatrixOperations::redistribute(BxL, BH.Square, BH.Root);
   MatrixOperations::redistribute(Pinv, BH.Square, BH.Root);
   double one = 1.0, zero = 0.0;
-  std::cout << BxL.store[0] << " " << BxL.store[1] << " " << Pinv.store[0] << " " << Pinv.store[1] << std::endl;
   MatrixOperations::product(BxL.nrows, Pinv.ncols, BxL.ncols,
                             one,
                             BxL.store.data(), BxL.nrows,
                             Pinv.store.data(), Pinv.nrows,
                             zero,
                             X.store.data(), X.nrows);
-  std::cout << X.store[0] << std::endl;
 }
 
 TEST_CASE("test_generate_thc", "[molecular]")
