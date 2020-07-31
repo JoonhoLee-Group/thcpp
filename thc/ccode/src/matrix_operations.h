@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <assert.h>
 #include "lapack_defs.h"
 #include "scalapack_defs.h"
 #include "distributed_matrix.h"
@@ -738,6 +739,14 @@ void hadamard_product(DistributedMatrix::Matrix<T> &A)
 {
   for (int i = 0; i < A.store.size(); i++)
     A.store[i] = A.store[i] * A.store[i];
+}
+
+template<typename T>
+void hadamard_product(DistributedMatrix::Matrix<T> &A, DistributedMatrix::Matrix<T>& B)
+{
+  assert(A.store.size() == B.store.size())
+  for (int i = 0; i < A.store.size(); i++)
+    A.store[i] = A.store[i] * B.store[i];
 }
 
 // QR decomposition with column pivoting.
