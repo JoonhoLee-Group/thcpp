@@ -234,3 +234,33 @@ TEST_CASE("test_product")
     }
   }
 }
+
+TEST_CASE("test_product_big")
+{
+  ContextHandler::BlacsHandler BH;
+  {
+    int m = 1400;
+    DistributedMatrix::Matrix<double> X(m,m,BH.Root), Y(m,m,BH.Root), Z(m,m,BH.Square);
+    if (BH.rank == 0) {
+      for (int i = 0; i < X.store.size(); i++)
+        X.store[i] = 0.0025;
+      for (int i = 0; i < Y.store.size(); i++)
+        Y.store[i] = 0.005;
+      for (int i = 0; i < m; i++)
+        Y.store[i] += 1.0;
+    }
+    MatrixOperations::redistribute(X, BH.Root, BH.Square);
+    MatrixOperations::redistribute(Y, BH.Root, BH.Square);
+    MatrixOperations::product(X,Y,Z);
+    MatrixOperations::redistribute(Z, BH.Square, BH.Root);
+    if (BH.rank == 0)
+    {
+      std::vector<double> ref(m*m);
+      for (int i = 0; i < m*m; i++)
+        ref[i] = 0.0175;
+      for (int i = 0; i < m; i++)
+        ref[i] = 3.5175;
+      REQUIRE_THAT(Z.store, Catch::Approx<double>(ref).margin(1e-12));
+    }
+  }
+}
