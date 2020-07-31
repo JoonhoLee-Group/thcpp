@@ -3,6 +3,7 @@ project(THCPP)
 add_library(thcpp SHARED h5helper.cpp context_handler.cpp
            kmeans.cpp qrcp.cpp interpolating_points.cpp
            interpolating_vectors.cpp
+           molecular.cpp
            ${CMAKE_CURRENT_BINARY_DIR}/gitsha1.cpp)
 
 include(GetGitRevisionDescription)
