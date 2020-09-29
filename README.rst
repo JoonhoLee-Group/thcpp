@@ -9,17 +9,16 @@ The code will write factorized two-electron integrals in the `QMCPACK format
 <https://qmcpack.readthedocs.io/en/develop/afqmc.html#listing-54>`_, for use in auxiliary
 field quantum Monte Carlo simulations [#]_.
 
-
 Requirements
 ------------
 
 To build the code you will require:
 
-- FFTW
-- MPI
-- SCALAPACK
-- HDF5
-- CMAKE
+- fftw3
+- mpi
+- scalapack
+- hdf5
+- cmake
 
 Building
 --------
