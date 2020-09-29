@@ -206,12 +206,12 @@ void find_pseudo_inverse_half(DistributedMatrix::Matrix<double>& orbs_occ,
                               ContextHandler::BlacsHandler& BH,
                               DistributedMatrix::Matrix<double>& Sinv)
 {
-  int nthc = orbs.nrows;
-  int norb = orbs.ncols;
+  int nthc = orbs_occ.nrows;
   DistributedMatrix::Matrix<double> Socc(nthc, nthc, BH.Square);
   DistributedMatrix::Matrix<double> Svirt(nthc, nthc, BH.Square);
+  DistributedMatrix::Matrix<double> S(nthc, nthc, BH.Square);
   MatrixOperations::product(orbs_occ, orbs_occ, Socc, 'N', 'T');
   MatrixOperations::product(orbs_virt, orbs_virt, Svirt, 'N', 'T');
-  MatrixOperations::hadamard_product(S, Svirt);
+  MatrixOperations::hadamard_product(Socc, Svirt, S);
   MatrixOperations::pseudo_inverse(S, Sinv, 1e-12, BH);
 }

@@ -742,11 +742,14 @@ void hadamard_product(DistributedMatrix::Matrix<T> &A)
 }
 
 template<typename T>
-void hadamard_product(DistributedMatrix::Matrix<T> &A, DistributedMatrix::Matrix<T>& B)
+void hadamard_product(DistributedMatrix::Matrix<T> &A,
+                      DistributedMatrix::Matrix<T>& B,
+                      DistributedMatrix::Matrix<T>& C)
 {
-  assert(A.store.size() == B.store.size())
+  assert(A.store.size() == B.store.size());
+  assert(C.store.size() == B.store.size());
   for (int i = 0; i < A.store.size(); i++)
-    A.store[i] = A.store[i] * B.store[i];
+    C.store[i] = A.store[i] * B.store[i];
 }
 
 // QR decomposition with column pivoting.
