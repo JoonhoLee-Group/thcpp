@@ -17,6 +17,7 @@ Requirements
 
 To build the code you will require:
 
+- c++-11 compliant compiler
 - fftw3
 - mpi
 - scalapack
