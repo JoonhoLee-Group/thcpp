@@ -1,0 +1,17 @@
+{
+    "orbital_file": "orbitals.h5",
+    "output_file": "thc.h5",
+    "thc_cfac": 15,
+    "thc_half_cfac": 10,
+    "half_rotated": true,
+    "interpolating_points": {
+        "kmeans": {
+            "threshold": 0.00001,
+            "max_it": 1000
+        }
+    },
+    "blacs": {
+        "block_cyclic_nrows": 64,
+        "block_cyclic_cocls": 64
+    }
+}

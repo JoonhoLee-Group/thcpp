@@ -4,4 +4,5 @@
 *build*
 *develop*
 *.core
+*.h5
 tags
