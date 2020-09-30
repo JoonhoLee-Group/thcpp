@@ -5,4 +5,5 @@
 *develop*
 *.core
 *.h5
+*.chk
 tags
