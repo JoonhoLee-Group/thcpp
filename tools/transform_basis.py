@@ -10,7 +10,6 @@ from pyscf.pbc.lib.chkfile import load_cell
 from pyscf import lib
 from pyscf.gto import mole
 import numpy
-from mpi4py import MPI
 import time
 import h5py
 import scipy.linalg
