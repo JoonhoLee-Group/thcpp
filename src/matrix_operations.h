@@ -688,7 +688,7 @@ inline int pseudo_inverse(DistributedMatrix::Matrix<double> &A,
 
 // T[L,mn] = P[L,m] P[L,n]
 // distributed over L
-inline int tensor_rank_one(DistributedMatrix::Matrix<double> &P,
+inline void tensor_rank_one(DistributedMatrix::Matrix<double> &P,
                            DistributedMatrix::Matrix<double> &T)
 {
   int mn = P.nrows * P.nrows;
