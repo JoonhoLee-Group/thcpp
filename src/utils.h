@@ -96,20 +96,6 @@ inline void parse_simple_opts(nlohmann::json &input, int rank, int &thc_cfac, in
   MPI_Bcast(&thc_half_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&half_rotated, 1, MPI_INT, 0, MPI_COMM_WORLD);
 }
-
-// Stolen from https://stackoverflow.com/questions/37368787/c-sort-one-vector-based-on-another-one
-template <typename T>
-inline void sort_a_from_b(std::vector<T> &a, std::vector<T> &b)
-{
-  std::vector<std::pair<T,T> > zipped;
-  zip(a, b, zipped);
-  std::sort(std::begin(zipped), std::end(zipped),
-          [&](const std::pair<T,T>& a, const std::pair<T,T>& b)
-          {
-              return a.second < b.second;
-          });
-  unzip(zipped, a, b);
-}
 template <typename A, typename B>
 inline void zip(const std::vector<A> &a, const std::vector<B> &b, std::vector<std::pair<A,B>> &zipped)
 {
@@ -128,6 +114,20 @@ inline void unzip(
         a[i] = zipped[i].first;
         b[i] = zipped[i].second;
     }
+}
+
+// Stolen from https://stackoverflow.com/questions/37368787/c-sort-one-vector-based-on-another-one
+template <typename T>
+inline void sort_a_from_b(std::vector<T> &a, std::vector<T> &b)
+{
+  std::vector<std::pair<T,T> > zipped;
+  zip(a, b, zipped);
+  std::sort(std::begin(zipped), std::end(zipped),
+          [&](const std::pair<T,T>& a, const std::pair<T,T>& b)
+          {
+              return a.second < b.second;
+          });
+  unzip(zipped, a, b);
 }
 
 
