@@ -1,7 +1,8 @@
-#include "context_handler.h"
 #include <math.h>
 #include <iostream>
 #include <mpi.h>
+
+#include "context_handler.h"
 
 namespace ContextHandler
 {
@@ -15,8 +16,14 @@ namespace ContextHandler
     Square = BlacsGrid(proc_rows, proc_cols, rank, square);
     Column = BlacsGrid(1, proc_rows*proc_cols, rank, column);
     comm = MPI_COMM_WORLD;
+    int err = 0;
     if (proc_rows != proc_cols && rank == 0) {
-      std::cout << "Not running on square processor grid." << std::endl;
+      std::cerr << "ERROR : Not running on square processor grid." << std::endl;
+      err = 1;
+    }
+    MPI_Bcast(&err, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (err != 0) {
+        exit(1);
     }
   }
   BlacsHandler::~BlacsHandler() {}
