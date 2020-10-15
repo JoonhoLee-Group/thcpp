@@ -143,7 +143,7 @@ namespace DistributedMatrix
         double memory = UTILS::get_memory(store);
         std::cout << " * Memory usage for " << name << ": " << memory << " GB" << std::endl;
     }
-    MPI_Bcast(dims.data(), 2, MPI::UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
+    MPI_Bcast(dims.data(), 2, MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
     if (row_major) {
       // Matrices are in native C order.
       nrows = dims[0];
