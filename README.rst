@@ -32,7 +32,14 @@ To compile do (assuming mkl):
 .. code-block:: bash
 
     mkdir build && cd build
-    CC=mpicc CXX=mpic++ cmake -DMKL_FLAG=cluster -DMPIEXC_EXECUTABLE=srun -DMPIEXEC_NUMPROC_FLAG=-n ../
+    CC=mpicc CXX=mpic++ cmake -DMKL_FLAG=cluster -DMPIEXEC_EXECUTABLE=srun -DMPIEXEC_NUMPROC_FLAG=-n ../
+
+For other scalapack implementations use:
+
+.. code-block:: bash
+
+    mkdir build && cd build
+    CC=mpicc CXX=mpic++ cmake -DSCALAPACK_LIBRARIES="/path/to/libscalapack" -DMPIEXEC_EXECUTABLE=srun -DMPIEXEC_NUMPROC_FLAG=-n ../
 
 Testing
 -------
