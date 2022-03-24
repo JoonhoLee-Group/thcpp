@@ -65,7 +65,7 @@ hcore = mf.get_hcore(kpts=kpt)                                   # obtain and st
 fock = (hcore + mf.get_veff(kpts=kpt))                           # store fock matrix (required with orthoAO)
 LINDEP = 1e-8
 X,nmo_per_kpt = get_ortho_ao(cell,kpt,LINDEP)      # store rotation to orthogonal PAO basis
-with h5py.File(mf.chkfile) as fh5:
+with h5py.File(mf.chkfile, 'r+') as fh5:
   fh5['scf/hcore'] = hcore
   fh5['scf/fock'] = fock
   fh5['scf/orthoAORot'] = X
