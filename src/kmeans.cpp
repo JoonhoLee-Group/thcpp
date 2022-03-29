@@ -105,13 +105,18 @@ namespace KMeans
     }
   }
 
-  void KMeansSolver::update_centroids(std::vector<double> &rho, std::vector<double> &grid, std::vector<double> &centroids, std::vector<int> &grid_map)
+  void KMeansSolver::update_centroids(
+      std::vector<double> &rho,
+      std::vector<double> &grid,
+      std::vector<double> &centroids,
+      std::vector<int> &grid_map)
   {
     MatrixOperations::zero(weights);
     MatrixOperations::zero(centroids);
     MatrixOperations::zero(global_weights);
     MatrixOperations::zero(global_centroids);
     int rank;
+    bool critical_error = false;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     for (int i = 0; i < grid.size()/ndim; i++) {
       weights[grid_map[i]] += rho[i];
@@ -124,10 +129,17 @@ namespace KMeans
     MPI_Allreduce(weights.data(), global_weights.data(), weights.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     weights.swap(global_weights);
     for (int i = 0; i < num_interp_pts; i++) {
-      if (weights[i] < 1e-8) std::cout << "zero weight : " << i << " " << centroids[i] << " " << centroids[i+1] << " " << centroids[i+2] << std::endl;
+      if (weights[i] < 1e-8) critical_error = true; 
       centroids[i*ndim] /= weights[i];
       centroids[i*ndim+1] /= weights[i];
       centroids[i*ndim+2] /= weights[i];
+    }
+    MPI_Bcast(&critical_error, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (critical_error) {
+      if (rank == 0) {
+        std::cout << " CRITICAL ERROR: Found centroid with weight ~ 0" << std::endl;
+      }
+      exit(1);
     }
   }
 
