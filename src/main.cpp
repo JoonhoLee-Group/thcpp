@@ -37,12 +37,20 @@ int main(int argc, char** argv)
   }
   int thc_cfac, thc_half_cfac;
   bool half_rotate;
+  bool find_interp_vec = true;
   std::vector<int> interp_indxs;
-  UTILS::parse_simple_opts(input_data, BH.rank, thc_cfac, thc_half_cfac, half_rotate);
+  UTILS::parse_simple_opts(
+          input_data,
+          BH.rank,
+          thc_cfac,
+          thc_half_cfac,
+          half_rotate,
+          find_interp_vec);
   // 1. Determine interpolating points for full orbital set.
   InterpolatingPoints::IPoints IPSolver(input_data, BH);
   interp_indxs = IPSolver.kernel(input_data, BH, thc_cfac, false);
   // 2. Determine interpolating vectors via least squares.
+  if (find_interp_vec)
   {
     // Half rotate
     bool half_rotate_first = false;
@@ -52,7 +60,7 @@ int main(int argc, char** argv)
     IVSolver.kernel(BH);
     if (BH.rank == 0 && !half_rotate) IVSolver.dump_qmcpack_data(thc_cfac, thc_half_cfac, BH);
   }
-  if (half_rotate) {
+  if (find_interp_vec && half_rotate) {
     if (thc_half_cfac != thc_cfac) {
       InterpolatingPoints::IPoints IP(input_data, BH);
       interp_indxs = IP.kernel(input_data, BH, thc_half_cfac, half_rotate);

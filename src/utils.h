@@ -70,31 +70,46 @@ inline void print_header(int nprocs, nlohmann::json &input_file)
   std::cout << std::endl;
 }
 
-inline void parse_simple_opts(nlohmann::json &input, int rank, int &thc_cfac, int &thc_half_cfac, bool &half_rotated)
+inline void parse_simple_opts(
+        nlohmann::json &input,
+        int rank,
+        int &thc_cfac,
+        int &thc_half_cfac,
+        bool &half_rotated,
+        bool &find_interp_vec)
 {
   if (rank == 0) {
     thc_cfac = input.at("thc_cfac").get<int>();
     try {
-      half_rotated = input.at("half_rotated").get<bool>();
+        find_interp_vec = input.at("find_interp_vec").get<bool>();
     }
-    catch (nlohmann::json::out_of_range& error) {
-      std::cout << " * Performing THC on full orbital basis." << std::endl;
-      half_rotated = false;
+    catch(nlohmann::json::out_of_range& error) {
+        find_interp_vec = true;
     }
-    if (half_rotated) {
-      try {
-        thc_half_cfac = input.at("thc_half_cfac").get<int>();
+    if (find_interp_vec) {
+        try {
+          half_rotated = input.at("half_rotated").get<bool>();
+        }
+        catch (nlohmann::json::out_of_range& error) {
+          std::cout << " * Performing THC on full orbital basis." << std::endl;
+          half_rotated = false;
+        }
+        if (half_rotated) {
+          try {
+            thc_half_cfac = input.at("thc_half_cfac").get<int>();
+          }
+          catch (nlohmann::json::out_of_range& error) {
+            std::cout << " * thc_half_cfac not specified." << std::endl;
+            std::cout << " * Setting to be the same as thc_cfac." << std::endl;
+            thc_half_cfac = thc_cfac;
+          }
+        }
       }
-      catch (nlohmann::json::out_of_range& error) {
-        std::cout << " * thc_half_cfac not specified." << std::endl;
-        std::cout << " * Setting to be the same as thc_cfac." << std::endl;
-        thc_half_cfac = thc_cfac;
-      }
-    }
   }
   MPI_Bcast(&thc_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&thc_half_cfac, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&half_rotated, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&find_interp_vec, 1, MPI_INT, 0, MPI_COMM_WORLD);
 }
 template <typename A, typename B>
 inline void zip(const std::vector<A> &a, const std::vector<B> &b, std::vector<std::pair<A,B>> &zipped)
