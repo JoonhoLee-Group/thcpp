@@ -129,7 +129,7 @@ namespace KMeans
     MPI_Allreduce(weights.data(), global_weights.data(), weights.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     weights.swap(global_weights);
     for (int i = 0; i < num_interp_pts; i++) {
-      if (weights[i] < 1e-8) critical_error = true; 
+      if (weights[i] < 1e-8) critical_error = true;
       centroids[i*ndim] /= weights[i];
       centroids[i*ndim+1] /= weights[i];
       centroids[i*ndim+2] /= weights[i];
