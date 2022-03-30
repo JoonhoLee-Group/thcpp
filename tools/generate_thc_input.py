@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import sys
-from transform_basis import dump_thc_data
+from thcpy.transform_basis import write_thc_data
 
 def parse_args(args):
     """Parse command-line arguments.
@@ -40,8 +40,12 @@ def main(args):
         command-line arguments.
     """
     options = parse_args(args)
-    dump_thc_data(options.chk_file, mos=True, half_rotate=True,
-                  orbital_file=options.orbitals, ortho_ao=True)
+    write_thc_data(
+            options.chk_file,
+            half_rotate=True,
+            dtype=np.complex128,
+            orbital_file=options.orbitals,
+            )
 
 if __name__ == '__main__':
 
