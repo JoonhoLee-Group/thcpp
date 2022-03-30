@@ -363,9 +363,9 @@ namespace InterpolatingVectors
     int ngs = CZt.nrows;
     std::vector<std::complex<double> > tmp(ngs);
     if (BH.rank == 0) {
-      std::cout << " * Performing FFT on grid with " << 2*fft_grid[0]+1 << " X " << 2*fft_grid[1]+1 << " X " << 2*fft_grid[2]+1 << " points." << std::endl;
+      std::cout << " * Performing FFT on grid with " << fft_grid[0] << " X " << fft_grid[1] << " X " << fft_grid[2] << " points." << std::endl;
     }
-    if ((2*fft_grid[0]+1)*(2*fft_grid[1]+1)*(2*fft_grid[2]+1) != ngs) {
+    if (fft_grid[0]*fft_grid[1]*fft_grid[2] != ngs) {
       if (BH.rank == 0) std::cout << " * WARNING: FFT grid not consitent with number of real space grid points." << std::endl;
     }
     for (int i = 0; i < CZt.local_ncols; i++) {
@@ -375,14 +375,14 @@ namespace InterpolatingVectors
       if (BH.rank == 0) {
         if ((i+1) % 20 == 0) std::cout << " * Performing FFT " << i+1 << " of " <<  CZt.local_ncols << std::endl;
       }
-      p = fftw_plan_dft_3d(2*fft_grid[0]+1, 2*fft_grid[1]+1, 2*fft_grid[2]+1,
+      p = fftw_plan_dft_3d(fft_grid[0], fft_grid[1], fft_grid[2],
                            reinterpret_cast<fftw_complex*>(tmp.data()),
                            reinterpret_cast<fftw_complex*>(CZt.store.data()+i*ngs),
                            FFTW_FORWARD, FFTW_ESTIMATE);
       fftw_execute(p);
       fftw_destroy_plan(p);
       if (half_rotate) {
-        p = fftw_plan_dft_3d(2*fft_grid[0]+1, 2*fft_grid[1]+1, 2*fft_grid[2]+1,
+        p = fftw_plan_dft_3d(fft_grid[0], fft_grid[1], fft_grid[2],
                              reinterpret_cast<fftw_complex*>(tmp.data()),
                              reinterpret_cast<fftw_complex*>(IVMG.store.data()+i*ngs),
                              FFTW_BACKWARD, FFTW_ESTIMATE);
