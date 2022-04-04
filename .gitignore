@@ -2,6 +2,7 @@
 *.swp
 *.nfs*
 *build*
+*debug*
 *develop*
 *.core
 *.h5
