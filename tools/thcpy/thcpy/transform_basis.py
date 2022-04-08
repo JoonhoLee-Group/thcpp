@@ -3,14 +3,16 @@
 import sys
 import os
 from pyscf.pbc.lib.chkfile import load_cell
-from pyscf.pbc import tools
 from pyscf.pbc import scf
 from pyscf.pbc import dft
+from pyscf.pbc import tools
 from pyscf import lib
 import numpy as np
 import time
 import h5py
 import scipy.linalg
+
+from thcpy import k2gamma
 
 def to_complex(data):
     return data.view(np.complex128).reshape(data.shape[0], data.shape[1])
@@ -64,10 +66,9 @@ def write_orbitals(
                         mesh=supercell.mesh)*supercell.vol/ngrid_points**2
     )
     mo_coeff = kmf_super.mo_coeff
-    assert np.max(mo_coeff.imag) < 1e-12
     hcore = kmf_super.get_hcore()
     if not ao_basis:
-        hcore = mo_coeff.T @ hcore @ mo_coeff
+        hcore = mo_coeff.conj().T @ hcore @ mo_coeff
     nks = np.prod(kmesh)
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
@@ -122,6 +123,7 @@ def write_orbitals(
                     aoR_half = aoR[:,:nup].copy()
                     for ir in range(ngs_chunk):
                         rho_occ[ir] = np.dot(aoR_half[ir].conj(),aoR_half[ir]).real   # not normalized
+                total_time = time.time() - start_time
                 if chunk % 10 == 0:
                     print(" -- AOs orthogonalised in {:f} s.".format(total_time))
                     print(" -- Computing density.")
@@ -156,7 +158,7 @@ def write_thc_data(
             k2gamma.kpts_to_kmesh(cell, kmf.kpts),
             dtype=np.int32
             )
-    scmf = k2gamma.k2gamma(kmf)
+    scmf = k2gamma.k2gamma(kmf, make_real=False)
     print("Writing supercell orbitals to {:s}".format(orbital_file))
     nkpts = len(kmf.mo_occ)
     e0 = nkpts * kmf.energy_nuc()

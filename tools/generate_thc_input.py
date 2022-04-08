@@ -2,6 +2,7 @@
 import argparse
 import sys
 from thcpy.transform_basis import write_thc_data
+import numpy as np
 
 def parse_args(args):
     """Parse command-line arguments.
