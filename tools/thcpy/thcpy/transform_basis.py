@@ -153,10 +153,10 @@ def write_thc_data(
         dtype=np.float64):
     cell, kmf = init_from_chkfile(scf_chk)
     kmesh = np.array(
-            tools.k2gamma.kpts_to_kmesh(cell, kmf.kpts),
+            k2gamma.kpts_to_kmesh(cell, kmf.kpts),
             dtype=np.int32
             )
-    scmf = tools.k2gamma.k2gamma(kmf)
+    scmf = k2gamma.k2gamma(kmf)
     print("Writing supercell orbitals to {:s}".format(orbital_file))
     nkpts = len(kmf.mo_occ)
     e0 = nkpts * kmf.energy_nuc()
