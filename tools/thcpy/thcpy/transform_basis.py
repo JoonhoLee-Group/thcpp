@@ -36,8 +36,11 @@ def init_from_chkfile(chkfile):
     nao = cell.nao_nr()
     energy = np.asarray(lib.chkfile.load(chkfile, 'scf/e_tot'))
     kpts = np.asarray(lib.chkfile.load(chkfile, 'scf/kpts'))
-    nkpts = len(kpts)
-    kmf = scf.KRHF(cell, kpts)
+    try:
+        nkpts = len(kpts)
+        kmf = scf.KRHF(cell, kpts)
+    except:
+        kmf = scf.RHF(cell)
     kmf.mo_occ = np.asarray(lib.chkfile.load(chkfile, 'scf/mo_occ'))
     kmf.mo_coeff = np.asarray(lib.chkfile.load(chkfile, 'scf/mo_coeff'))
     kmf.mo_energy = np.asarray(lib.chkfile.load(chkfile, 'scf/mo_energy'))
@@ -46,6 +49,7 @@ def init_from_chkfile(chkfile):
 def write_orbitals(
         kmf_super,
         kmesh,
+        ao_basis=False,
         e0=0,
         filename='orbitals.h5',
         half_rotate=False,
@@ -61,7 +65,9 @@ def write_orbitals(
     )
     mo_coeff = kmf_super.mo_coeff
     assert np.max(mo_coeff.imag) < 1e-12
-    hcore = mo_coeff.T @ kmf_super.get_hcore() @ mo_coeff
+    hcore = kmf_super.get_hcore()
+    if not ao_basis:
+        hcore = mo_coeff.T @ hcore @ mo_coeff
     nks = np.prod(kmesh)
     with h5py.File(filename, 'w') as fh5:
         fh5.create_dataset('real_space_grid', data=grid)
@@ -106,10 +112,12 @@ def write_orbitals(
                 rho = np.zeros((ngs_chunk,1))
                 rho_occ = np.zeros((ngs_chunk,1))
                 start_time = time.time()
+                # Translate orthogonalising matrix to supercell basis.
                 if chunk % 10 == 0:
                     print(" -- Orthogonalising AOs.")
-                # Translate orthogonalising matrix to supercell basis.
-                aoR = np.dot(aoR, mo_coeff)
+                if not ao_basis:
+                    # print(chunk, aoR.shape, mo_coeff.shape)
+                    aoR = np.dot(aoR, mo_coeff)
                 if half_rotate:
                     aoR_half = aoR[:,:nup].copy()
                     for ir in range(ngs_chunk):
@@ -140,6 +148,7 @@ def write_orbitals(
 def write_thc_data(
         scf_chk,
         half_rotate=False,
+        ao_basis=False,
         orbital_file='orbitals.h5',
         dtype=np.float64):
     cell, kmf = init_from_chkfile(scf_chk)
@@ -156,6 +165,7 @@ def write_thc_data(
     write_orbitals(
             scmf,
             kmesh,
+            ao_basis=ao_basis,
             half_rotate=half_rotate,
             e0=e0,
             filename=orbital_file,
