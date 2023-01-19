@@ -9,8 +9,8 @@ The code will write factorized two-electron integrals in the `QMCPACK format
 <https://qmcpack.readthedocs.io/en/develop/afqmc.html#listing-54>`_, for use in auxiliary
 field quantum Monte Carlo simulations [#]_.
 
-.. image:: http://img.shields.io/badge/License-LGPL%20v2.1-blue.svg
-    :target: http://github.com/fdmalone/pauxy/blob/master/LICENSE
+.. image:: https://img.shields.io/badge/License-Apache%20v2-blue.svg
+    :target: http://github.com/fdmalone/thcpp/blob/main/LICENSE
 
 Requirements
 ------------
